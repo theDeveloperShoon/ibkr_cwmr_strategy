@@ -8,20 +8,29 @@
 
 #include <memory>
 
+class EClientSocket;
+
 class CWMR_Client : public EWrapper
 {
 public:
 	CWMR_Client();
 	~CWMR_Client();
 
+	void setConnectOptions(const std::string&);
+	void processMessages();
+
+public: 
+	bool connect(const std::string& host, int port, int clientId = 0);
+	bool isConnected() const;
 
 public:
 	// --- Virtual Overrides for EWrapper interface methods ---
 	#include "EWrapper_prototypes.h"
 
+
 private:
 	EReaderOSSignal m_osSignal;
-	// EClientSocket* const m_pClient;
+	 EClientSocket* const m_pClient;
 	std::unique_ptr<EReader> m_pReader;
 	bool m_extraAuth;
 
