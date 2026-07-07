@@ -42,7 +42,7 @@ add_executable(IBKR_CWMR_STRATEGY
 	"IBKR_CMAKE_MEAN_REVERSION.cpp"
 	"IBKR_CMAKE_MEAN_REVERSION.h"
 #	${TWS_API_SOURCES}
- )
+  "CWMR_Client.h" "CWMR_Client.cpp")
 
 target_link_libraries(IBKR_CWMR_STRATEGY PRIVATE ibkr_twsapi)
 
