@@ -27,11 +27,15 @@ public:
 	// --- Virtual Overrides for EWrapper interface methods ---
 	#include "EWrapper_prototypes.h"
 
+private: 
+	void printContractMsg(const Contract& contract);
 
 private:
 	EReaderOSSignal m_osSignal;
 	 EClientSocket* const m_pClient;
 	std::unique_ptr<EReader> m_pReader;
+
+	int m_orderId;
 	bool m_extraAuth;
 
 };
