@@ -2,6 +2,7 @@
 
 #include "EClientSocket.h"
 
+
 #include <print>
 
 CWMR_Client::CWMR_Client() : 
@@ -139,3 +140,82 @@ void CWMR_Client::printContractMsg(const Contract& contract) {
 	std::println("\tTradingClass: {}", contract.tradingClass);
 }
 
+void CWMR_Client::printContractDetailsMsg(const ContractDetails& contractDetails) {
+	std::println("\tMarketName: {}", contractDetails.marketName);
+	std::println("\tMinTick: {}", contractDetails.minTick);
+	std::println("\tPriceMagnifier: {}", contractDetails.priceMagnifier);
+	std::println("\tOrderTypes: {}", contractDetails.orderTypes);
+	std::println("\tValidExchanges: {}", contractDetails.validExchanges);
+	std::println("\tUnderConId: {}", contractDetails.underConId);
+	std::println("\tLongName: {}", contractDetails.longName);
+	std::println("\tContractMonth: {}", contractDetails.contractMonth);
+	std::println("\tIndustry: {}", contractDetails.industry);
+	std::println("\tCategory: {}", contractDetails.category);
+	std::println("\tSubcategory: {}", contractDetails.subcategory);
+	std::println("\tTimeZoneId: {}", contractDetails.timeZoneId);
+	std::println("\tTradingHours: {}", contractDetails.tradingHours);
+	std::println("\tLiquidHours: {}", contractDetails.liquidHours);
+
+	std::println("\tEvRule: {}", contractDetails.evRule);
+	std::println("\tEvMultiplier: {}", contractDetails.evMultiplier);
+	std::println("\tAggGroup: {}", contractDetails.aggGroup);
+	std::println("\tUnderSymbol: {}", contractDetails.underSymbol);
+	std::println("\tUnderSecType: {}", contractDetails.underSecType);
+	std::println("\tMarketRuleIds: {}", contractDetails.marketRuleIds);
+	std::println("\tRealExpirationDate: {}", contractDetails.realExpirationDate);
+	std::println("\tLastTradeTime: {}", contractDetails.lastTradeTime);
+	std::println("\tStockType: {}", contractDetails.stockType);
+
+	std::println("\tMinSize: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.minSize));
+	std::println("\tSizeIncrement: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.sizeIncrement));
+	std::println("\tSuggestedSizeIncrement: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.suggestedSizeIncrement));
+	std::println("\tMinAlgoSize: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.minAlgoSize));
+	std::println("\tLastPricePrecision: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.lastPricePrecision));
+	std::println("\tLastSizePrecision: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.lastSizePrecision));
+	std::println("\tEventContract1: {}", contractDetails.eventContract1);
+	std::println("\tEventContractDescription1: {}", contractDetails.eventContractDescription1);
+	std::println("\tEventContractDescription2: {}", contractDetails.eventContractDescription2);
+	
+	if (contractDetails.contract.secType == "FUND") {
+		std::println("\tFund Data:");
+		std::println("\t\tFundName: {}", contractDetails.fundName);
+		std::println("\t\tFundFamily: {}", contractDetails.fundFamily);
+		std::println("\t\tFundType: {}", contractDetails.fundType);
+		std::println("\t\tFundFrontLoad: {}", contractDetails.fundFrontLoad);
+		std::println("\t\tFundBackLoad: {}", contractDetails.fundBackLoad);
+		std::println("\t\tFundBackLoadTimeInterval: {}", contractDetails.fundBackLoadTimeInterval);
+		std::println("\t\tFundManagementFee: {}", contractDetails.fundManagementFee);
+		std::println("\t\tFundClosed: {}", contractDetails.fundClosed);
+		std::println("\t\tFundClosedForNewInvestors: {}", contractDetails.fundClosedForNewInvestors);
+		std::println("\t\tFundClosedForNewMoney: {}", contractDetails.fundClosedForNewMoney);
+		std::println("\t\tFundNotifyAmount: {}", contractDetails.fundNotifyAmount);
+		std::println("\t\tFundMinimumInitialPurchase: {}", contractDetails.fundMinimumInitialPurchase);
+		std::println("\t\tFundSubsequentMinimumPurchase: {}", contractDetails.fundSubsequentMinimumPurchase);
+		std::println("\t\tFundBlueSkyStates: {}", contractDetails.fundBlueSkyStates);
+		std::println("\t\tFundBlueSkyTerritories: {}", contractDetails.fundBlueSkyTerritories);
+		std::println("\t\tFundDistributionPolicyIndicator: {}", static_cast<int>(contractDetails.fundDistributionPolicyIndicator));
+		std::println("\t\tFundAssetType: {}", static_cast<int>(contractDetails.fundAssetType));
+	}
+	printContractDetailsSecIdList(contractDetails.secIdList);
+}
+
+void CWMR_Client::printContractDetailsSecIdList(const TagValueListSPtr& secIdList) {
+	if (secIdList) {
+		std::println("\tSecIdList: {");
+		for (const auto& tag : *secIdList) {
+			std::print("{}={}", tag->tag, tag->value);
+		}
+		std::println("}");
+	}
+}
+
+
+void CWMR_Client::printContractDetailsIneligibilityReasonList(const IneligibilityReasonListSPtr& ineligibilityReasonList) {
+	if (ineligibilityReasonList) {
+		std::println("\tIneligibilityReasonList: {");
+		for (const auto& reason : *ineligibilityReasonList) {
+			std::print("[id: {}, description: {}];", reason->id, reason->description);
+		}
+		std::println("}");
+	}
+}

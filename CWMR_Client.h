@@ -29,6 +29,9 @@ public:
 
 private: 
 	void printContractMsg(const Contract& contract);
+	void printContractDetailsMsg(const ContractDetails& contractDetails);
+	void printContractDetailsSecIdList(const TagValueListSPtr& secIdList);
+	void printContractDetailsIneligibilityReasonList(const IneligibilityReasonListSPtr& ineligibilityReasonList);
 
 private:
 	EReaderOSSignal m_osSignal;
