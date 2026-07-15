@@ -32,6 +32,7 @@ private:
 	void printContractDetailsMsg(const ContractDetails& contractDetails);
 	void printContractDetailsSecIdList(const TagValueListSPtr& secIdList);
 	void printContractDetailsIneligibilityReasonList(const IneligibilityReasonListSPtr& ineligibilityReasonList);
+	void printBondContractDetailsMsg(const ContractDetails& contractDetails);
 
 private:
 	EReaderOSSignal m_osSignal;
