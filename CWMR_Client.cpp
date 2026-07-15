@@ -123,7 +123,6 @@ void CWMR_Client::bondContractDetails(int reqId, const ContractDetails& contract
 	std::println("BondContractDetails begin. ReqId: {}", reqId);
 	printBondContractDetailsMsg(contractDetails);
 	std::println("BondContractDetails end. ReqId: {}", reqId);
-	//TODO:
 }
 
 void CWMR_Client::contractDetailsEnd(int reqId) {
