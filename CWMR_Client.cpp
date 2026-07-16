@@ -6,6 +6,7 @@
 #include "Execution.h"
 
 #include <print>
+#include <chrono>
 
 CWMR_Client::CWMR_Client() : 
 	m_osSignal(2000),
@@ -148,6 +149,64 @@ void CWMR_Client::execDetails(int reqId, const Contract& contract, const Executi
 		Utility::doubleMaxString(execution.evMultiplier), execution.modelCode, Utility::intMaxString(execution.lastLiquidity), 
 		execution.pendingPriceRevision ? "Yes" : "No",	execution.submitter, Utility::getOptionExerciseTypeName(execution.optExerciseOrLapseType));
 }
+
+void CWMR_Client::execDetailsEnd(int reqId){
+	std::println("ExecDetailsEnds. ReqId: {}", reqId);
+}
+
+void CWMR_Client::error(int id, time_t errorTime, int errorCode, const std::string& errorString,
+	const std::string& advancedOrderRejectJson) {
+	
+	std::string errorTimeStr;
+	if (errorTime > 0) {
+		auto tp = std::chrono::system_clock::time_point{
+			std::chrono::milliseconds{errorTime}
+		};
+		errorTimeStr = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+	}
+
+	if (!advancedOrderRejectJson.empty()) {
+		std::println("Error. Id: {}, Time: {}, Code: {}, Msg: {}, AdvancedOrderRejectJson: {}",
+			id, errorTimeStr, errorCode, errorString, advancedOrderRejectJson);
+	}
+	else {
+		std::println("Error. Id: {}, Time: {}, Code: {}, Msg: {}", id, errorTimeStr, errorCode, errorString);
+	}
+}
+
+void CWMR_Client::updateMktDepth(int reqId, int position, int operation, int side, 
+	double price, Decimal size) {
+	std::println("UpdateMarketDepth. {} - Positionn: {}, Operation: {}, Side: {}, "
+		"Price: {}, Size: {}", reqId, Utility::intMaxString(position), operation, side,
+		Utility::doubleMaxString(price), DecimalFunctions::decimalStringToDisplay(size));
+}
+
+
+void CWMR_Client::updateMktDepthL2(int reqId, int position, const std::string& marketMaker,
+	int operation, int side, double price, Decimal size, bool isSmartDepth) {
+	std::println("UpdateMarketDepthL2. {} - Position: {}, Operation: {}, Side: {}, "
+		"Price: {}, Size: {}, isSmartDepth: {}", reqId, Utility::intMaxString(position),
+		operation, side, Utility::doubleMaxString(price), DecimalFunctions::decimalStringToDisplay(size),
+		isSmartDepth);
+}
+
+void CWMR_Client::updateNewsBulletin(int msgId, int msgType, const std::string& newMessage, const std::string& originExch){
+	std::println("News Bulletins. {} - Type: {}, Message: {}, Exhcange of Origin: {}",
+		msgId, msgType, newMessage, originExch);
+}
+
+void CWMR_Client::managedAccounts(const std::string& accountsList) {
+	std::println("Account List: {}", accountsList);
+}
+
+void CWMR_Client::receiveFA(faDataType pFaDataType, const std::string& cxml) {
+	std::println("Receiving Fa: {}", std::to_underlying(pFaDataType));
+	std::println("{}", cxml);
+}
+
+//void CWMR_Client::historicalData(int reqId, const Bar& bar) {
+//	std::println("")
+//}
 
 void CWMR_Client::printContractMsg(const Contract& contract) {
 	std::println("\tContractId: {}", contract.conId);
