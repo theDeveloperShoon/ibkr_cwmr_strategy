@@ -4,6 +4,7 @@
 
 #include "EClientSocket.h"
 #include "Execution.h"
+#include "CommissionAndFeesReport.h"
 
 #include <print>
 #include <chrono>
@@ -204,9 +205,104 @@ void CWMR_Client::receiveFA(faDataType pFaDataType, const std::string& cxml) {
 	std::println("{}", cxml);
 }
 
-//void CWMR_Client::historicalData(int reqId, const Bar& bar) {
-//	std::println("")
-//}
+void CWMR_Client::historicalData(int reqId, const Bar& bar) {
+	std::println("HistoricalData. ReqId: {} - Date: {}, Openn: {}, High: {}, Low: {}, "
+		"Close: {}, Volume: {}, Count: {}, WAP: {}", reqId, bar.time, Utility::doubleMaxString(bar.open),
+		Utility::doubleMaxString(bar.high), Utility::doubleMaxString(bar.low), Utility::doubleMaxString(bar.close),
+		DecimalFunctions::decimalStringToDisplay(bar.volume), Utility::intMaxString(bar.count), DecimalFunctions::decimalStringToDisplay(bar.wap));
+}
+
+void CWMR_Client::historicalDataEnd(int reqId, const std::string& startDateStr, const std::string& endDateStr) {
+	std::println("HistoricalDataEnd. ReqId: {}, StartDate: {}, EndDate: {}", reqId, startDateStr, endDateStr);
+}
+
+void CWMR_Client::scannerParameters(const std::string& xml) {
+	std::println("ScannerParameters. {}", xml);
+}
+
+void CWMR_Client::scannerData(int reqId, int rank, const ContractDetails& contractDetails,
+	const std::string& distance, const std::string& benchmark, const std::string& projection,
+	const std::string& legsStr) {
+	std::println("ScannerData. ReqId: {}, Rank: {}, Symbol: {}, SecType:{}, Currency: {}, "
+		"Distance: {}, Benchmark: {}, Projection: {}, Legs String: {}",
+		reqId, rank, contractDetails.contract.symbol, contractDetails.contract.secType, 
+		contractDetails.contract.currency, distance, benchmark, projection, legsStr);
+}
+
+void CWMR_Client::scannerDataEnd(int reqId) {
+	std::println("ScannerDataEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::realtimeBar(int reqId, long long time, double open, double high, double low,
+	double close, Decimal volume, Decimal wap, int count) {
+	std::println("RealTimeBar. ReqId: {} - Time: {}, Open: {}, High: {}, Low: {}, Close: {}, "
+		"Volume: {}, Count: {}, WAP: {}", reqId, Utility::llongMaxString(time), Utility::doubleMaxString(open), Utility::doubleMaxString(high),
+		Utility::doubleMaxString(low), Utility::doubleMaxString(close), DecimalFunctions::decimalStringToDisplay(volume),
+		Utility::intMaxString(count), DecimalFunctions::decimalStringToDisplay(wap));
+}
+
+void CWMR_Client::currentTime(long long time) {
+	const std::chrono::sys_seconds tp{std::chrono::seconds{time}};
+	const std::chrono::zoned_time localTp{std::chrono::current_zone(), tp};
+	const std::string localTimeStr = std::format("{:%Y-%m-%d %H:%M:%S}", localTp);
+
+	std::println("Current Time. Time: {}, Local Time: {}", Utility::llongMaxString(time), localTimeStr);
+
+	// TODO: ADD STATE
+}
+
+void CWMR_Client::deltaNeutralValidation(int reqId, const DeltaNeutralContract& deltaNeutralContract) {
+	std::println("DeltaNeutralValidation. ReqId: {}, ConId: {}, Delta: {}, Price: {}",
+		reqId, deltaNeutralContract.conId, Utility::doubleMaxString(deltaNeutralContract.delta),
+		Utility::doubleMaxString(deltaNeutralContract.price));
+}
+
+void CWMR_Client::tickSnapshotEnd(int reqId) {
+	std::println("TickSnapshotEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::marketDataType(int reqId, int marketDataType) {
+	std::println("MarketDataType. ReqId: {}, MarketDataType: {}", reqId, marketDataType);
+}
+
+void CWMR_Client::commissionAndFeesReport(const CommissionAndFeesReport& commissionAndFeesReport) {
+	std::println("CommissionAndFeesReport. ExecId: {}, CommissionAndFees: {}, Currency: {}, RealizedPNL: {}",
+		commissionAndFeesReport.execId, commissionAndFeesReport.commissionAndFees, commissionAndFeesReport.currency,
+		commissionAndFeesReport.realizedPNL);
+}
+
+void CWMR_Client::position(const std::string& account, const Contract& contract, Decimal position, double avgCost) {
+	std::println("Position. Account: {}, Symbol: {}, SecType: {}, Currency: {}, Position: {}, AvgCost: {}",
+		account, contract.symbol, contract.secType, contract.currency, 
+		DecimalFunctions::decimalStringToDisplay(position), 
+		Utility::doubleMaxString(avgCost));
+}
+
+void CWMR_Client::positionEnd() {
+	std::println("PositionEnd");
+}
+
+void CWMR_Client::accountSummary(int reqId, const std::string& account, const std::string& tag,
+	const std::string& value, const std::string& currency) {
+	std::println("AccountSummary. ReqId: {}, Account: {}, Tag: {}, Value: {}, Currency: {}",
+		reqId, account, tag, value, currency);
+}
+
+void CWMR_Client::accountSummaryEnd(int reqId) {
+	std::println("AccountSummaryEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::verifyMessageAPI(const std::string& apiData) {
+	std::println("VerifyMessageAPI. ApiData: {}", apiData);
+}
+
+void CWMR_Client::verifyCompleted(bool isSuccessful, const std::string& errorText) {
+	std::println("VerifyCompleted. IsSuccessful: {} - Error: {}", isSuccessful ? "Yes" : "No", errorText);
+}
+
+void CWMR_Client::verifyAndAuthMessageAPI(const std::string& apiData, const std::string& xyzChallange) {
+	std::println("VerifyAndAuthMessageAPI. ApiData: {}, XyzChallenge: {}", apiData, xyzChallange);
+}
 
 void CWMR_Client::printContractMsg(const Contract& contract) {
 	std::println("\tContractId: {}", contract.conId);
@@ -214,7 +310,7 @@ void CWMR_Client::printContractMsg(const Contract& contract) {
 	std::println("\tSecType: {}", contract.secType);
 	std::println("\tLastTradeDateOrContractMonth: {}", contract.lastTradeDateOrContractMonth);
 	std::println("\tLastTradeDate: {}", contract.lastTradeDate);
-	std::println("\tStrike: {}", contract.strike);
+	std::println("\tStrike: {}", Utility::doubleMaxString(contract.strike));
 	std::println("\tRight: {}", contract.right);
 	std::println("\tMultiplier: {}", contract.multiplier);
 	std::println("\tExchange: {}", contract.exchange);
