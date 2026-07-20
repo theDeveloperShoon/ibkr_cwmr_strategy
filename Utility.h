@@ -5,6 +5,7 @@
 #include <string>
 #include <limits>
 #include <cmath>
+#include <vector>
 #include "CommonDefs.h"
 
 class Utility {
@@ -17,6 +18,8 @@ public:
 	static std::string getFundDistributionPolicyIndicatorString(FundDistributionPolicyIndicator fundDistributionPolicyIndicator);
 	static std::string getFundAssetTypeName(FundAssetType fundAssetType);
 	static std::string getOptionExerciseTypeName(OptionExerciseType optionExerciseType);
+
+	static std::vector<std::uint8_t> base64Decode(const std::string& encodedString);
 };
 
 #endif // !CWMR_STRATEGY_UTILITY_H

@@ -2,7 +2,12 @@
 
 #include <string>
 #include <sstream>
+#include <vector>
 
+static const std::string base64Chars =
+	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	"abcdefghijklmnopqrstuvwxyz"
+	"0123456789+/";
 
 std::string Utility::doubleMaxString(double d, std::string def) {
 	if (d == DBL_MAX) {
@@ -99,4 +104,24 @@ std::string Utility::getOptionExerciseTypeName(OptionExerciseType optionExercise
 	default:
 		return "Unknown";
 	}
+}
+
+std::vector<std::uint8_t> Utility::base64Decode(const std::string& encodedString) {
+
+
+	std::vector<std::uint8_t> decodedBytes;
+	//int val = 0, valb = -8;
+	//for (unsigned char c : encodedString) {
+	//	if (isspace(c)) continue; // Skip whitespace
+	//	if (c == '=') break; // Stop at padding character
+	//	auto pos = base64Chars.find(c);
+	//	if (pos == std::string::npos) continue; // Skip invalid characters
+	//	val = (val << 6) + pos;
+	//	valb += 6;
+	//	if (valb >= 0) {
+	//		decodedBytes.push_back(static_cast<std::uint8_t>((val >> valb) & 0xFF));
+	//		valb -= 8;
+	//	}
+	//}
+	return decodedBytes;
 }

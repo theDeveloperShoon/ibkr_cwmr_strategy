@@ -8,6 +8,7 @@
 
 #include <print>
 #include <chrono>
+#include <filesystem>
 
 CWMR_Client::CWMR_Client() : 
 	m_osSignal(2000),
@@ -169,7 +170,7 @@ void CWMR_Client::error(int id, time_t errorTime, int errorCode, const std::stri
 	if (!advancedOrderRejectJson.empty()) {
 		std::println("Error. Id: {}, Time: {}, Code: {}, Msg: {}, AdvancedOrderRejectJson: {}",
 			id, errorTimeStr, errorCode, errorString, advancedOrderRejectJson);
-	}
+	} 
 	else {
 		std::println("Error. Id: {}, Time: {}, Code: {}, Msg: {}", id, errorTimeStr, errorCode, errorString);
 	}
@@ -300,8 +301,168 @@ void CWMR_Client::verifyCompleted(bool isSuccessful, const std::string& errorTex
 	std::println("VerifyCompleted. IsSuccessful: {} - Error: {}", isSuccessful ? "Yes" : "No", errorText);
 }
 
+void CWMR_Client::displayGroupList(int reqId, const std::string& groups) {
+	std::println("DisplayGroupList. ReqId: {}, Groups: {}", reqId, groups);
+}
+
+void CWMR_Client::displayGroupUpdated(int reqId, const std::string& contractInfo) {
+	std::println("DisplayGroupUpdated. ReqId: {}, ContractInfo: {}", reqId, contractInfo);
+}
+
 void CWMR_Client::verifyAndAuthMessageAPI(const std::string& apiData, const std::string& xyzChallange) {
 	std::println("VerifyAndAuthMessageAPI. ApiData: {}, XyzChallenge: {}", apiData, xyzChallange);
+}
+
+void CWMR_Client::verifyAndAuthCompleted(bool isSuccessful, const std::string& errorText) {
+	std::println("VerifyAndAuthCompleted. IsSuccessful: {} - Error: {}", isSuccessful ? "Yes" : "No", errorText);
+	if (isSuccessful) m_pClient->startApi();
+}
+
+void CWMR_Client::connectAck() {
+	if (!m_extraAuth && m_pClient->asyncEConnect()) 
+		m_pClient->startApi();
+}
+
+void CWMR_Client::positionMulti(int reqId, const std::string& account, const std::string& modelCode,
+	const Contract& contract, Decimal pos, double avgCost) {
+	std::println("PositionMulti. ReqId: {}, Account: {}, ModelCode: {}, Symbol: {}, "
+		"SecType: {}, Currency: {}, Position: {}, AvgCost: {}", reqId, account, 
+		modelCode, contract.symbol, contract.secType, contract.currency,
+		DecimalFunctions::decimalStringToDisplay(pos), Utility::doubleMaxString(avgCost));
+}
+
+void CWMR_Client::positionMultiEnd(int reqId) {
+	std::println("PositionMultiEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::accountUpdateMulti(int reqId, const std::string& account, const std::string& modelCode,
+	const std::string& key, const std::string& value, const std::string& currency) {
+	std::println("AccountUpdateMulti. ReqId: {}, Account: {}, ModelCode: {}, Key: {}, Value: {}, Currency: {}",
+		reqId, account, modelCode, key, value, currency);
+}
+
+void CWMR_Client::accountUpdateMultiEnd(int reqId) {
+	std::println("AccountUpdateMultiEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::securityDefinitionOptionalParameter(int reqId, const std::string& exchange,
+	int underlyingConId, const std::string& tradingClass, const std::string& multiplier,
+	const std::set<std::string>& expirations, const std::set<double>& strikes) {
+	std::println("SecurityDefinitionOptionalParameter. ReqId: {}, Exchange: {}, "
+		"UnderlyingConId: {}, TradingClass: {}, Multiplier: {}, Expirations: {}",
+		reqId, exchange, underlyingConId, tradingClass, multiplier,
+		expirations.size());
+
+	bool first = true;
+	for (const auto& exp : expirations) {
+		std::print("{}{}", first ? "" : ", ", exp);
+		first = false;
+	}
+
+	std::print(", Strikes ({}): ", strikes.size());
+	first = true;
+	for (const auto& strike : strikes) {
+		std::print("{}{:.2f}", first ? "" : ", ", Utility::doubleMaxString(strike));
+		first = false;
+	}
+	std::println();
+}
+
+void CWMR_Client::securityDefinitionOptionalParameterEnd(int reqId) {
+	std::println("SecurityDefinitionOptionalParameterEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::softDollarTiers(int reqId, const std::vector<SoftDollarTier>& tiers) {
+	std::println("SoftDollarTiers. ReqId: {}, Tiers: {}", reqId, tiers.size());
+
+	for (const SoftDollarTier& tier : tiers) {
+		printSoftDollarTier(tier);
+	}
+}
+
+void CWMR_Client::familyCodes(const std::vector<FamilyCode>& familyCodes) {
+	std::println("Family Codes ({})", familyCodes.size());
+	for (const FamilyCode& familyCode : familyCodes) {
+		std::println("Family Code accountId: {} familyCodeStr: {}", 
+			familyCode.accountID, familyCode.familyCodeStr);
+	}
+}
+
+void CWMR_Client::symbolSamples(int reqId, const std::vector<ContractDescription>& contractDescriptions) {
+	std::println("Symbol Samples (total={}) reqId: {}", contractDescriptions.size(), reqId);
+
+	for (const ContractDescription& contractDescription : contractDescriptions) {
+		const Contract& contract = contractDescription.contract;
+		const std::vector<std::string>& derivativeSecTypes = contractDescription.derivativeSecTypes;
+		
+		std::print("Contract ({}): conId: {}, symbol: {}, secType: {}, primaryExchange: {}, "
+			"currency: {}, ", contract.conId, contract.symbol, contract.secType, contract.primaryExchange, contract.currency);
+		std::print("DerivativeSecTypes: ({}):", derivativeSecTypes.size());
+
+		for (const std::string& derivativeSecType : derivativeSecTypes) {
+			std::print(" {}", derivativeSecType);
+		}
+		std::print(", description: {}, issuerId: {}", contract.description, 
+			contract.issuerId);
+		std::println();
+	}
+}
+
+void CWMR_Client::mktDepthExchanges(const std::vector<DepthMktDataDescription>& depthMktDataDescriptions) {
+	std::println("Market Depth Exchanges (total={})", depthMktDataDescriptions.size());
+
+	for (const DepthMktDataDescription& depthMktDataDescription : depthMktDataDescriptions) {
+		std::println("Depth Market Data Description: exchange: {}, secType: {}, listingExch: {}, "
+			"serviceDataType: {}, aggGroup: {}", depthMktDataDescription.exchange,
+			depthMktDataDescription.secType, depthMktDataDescription.listingExch,
+			depthMktDataDescription.serviceDataType, depthMktDataDescription.aggGroup);
+	}
+}
+
+void CWMR_Client::tickNews(int reqId, time_t timeStamp, const std::string& providerCode,
+	const std::string& articleId, const std::string& headline, const std::string& extraData) {
+	std::string timeString;
+
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{timeStamp} };
+	timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+
+	std::println("Tick News. ReqId: {}, TimeStamp: {}, ProviderCode: {}, ArticleId: {}, Headline: {}, ExtraData: {}",
+		reqId, timeString, providerCode, articleId, headline, extraData);
+}
+
+void CWMR_Client::smartComponents(int reqId, const SmartComponentsMap& theMap) {
+	std::println("Smart Components. ({}):", theMap.size());
+
+	for (const auto& [bitNumber, smartComponent] : theMap) {
+		const auto& [exchange, exchangeLetter] = smartComponent;
+		std::println(" BitNumber: {}, Exchange: {}, ExchangeLetter: {}",
+			bitNumber, exchange, exchangeLetter);
+	}
+}
+
+void CWMR_Client::tickReqParams(int reqId, double minTick, const std::string& bboExchange,
+	int snapshotPermissions) {
+	std::println("Tick Req Params. TickerId: {}, MinTick: {}, BBOExchange: {}, SnapshotPermissions: {}",
+		reqId, Utility::doubleMaxString(minTick), bboExchange, snapshotPermissions);
+}
+
+void CWMR_Client::newsProviders(const std::vector<NewsProvider>& newsProviders) {
+	std::println("News Providers ({}):", newsProviders.size());
+
+	for (const NewsProvider& newsProvider : newsProviders) {
+		std::println("News Provider - ProviderCode: {}, ProviderName: {}", newsProvider.providerCode, newsProvider.providerName);
+	}
+}
+
+void CWMR_Client::newsArticle(int reqId, int articleType, const std::string& articleText) {
+	std::println("News Article. ReqId: {}, ArticleType: {}", reqId, articleType);
+	if (articleType == 0) {
+		std::println("News Article  Text (text or html): {}", articleText);
+	} else if (articleType == 1) {
+		const std::filesystem::path path = std::filesystem::current_path() / "MST$06f53098.pdf";
+
+	}
+	// TODO:
 }
 
 void CWMR_Client::printContractMsg(const Contract& contract) {
@@ -438,4 +599,9 @@ void CWMR_Client::printBondContractDetailsMsg(const ContractDetails& contractDet
 	std::println("\tSizeIncrement: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.sizeIncrement));
 	std::println("\tSuggestedSizeIncrement: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.suggestedSizeIncrement));
 	printContractDetailsSecIdList(contractDetails.secIdList);
+}
+
+void CWMR_Client::printSoftDollarTier(const SoftDollarTier& softDollarTier) {
+	std::println("\tSoftDollarTier - Name={}, Value={}, DisplayName={}", 
+		softDollarTier.name(), softDollarTier.val(), softDollarTier.displayName());
 }
