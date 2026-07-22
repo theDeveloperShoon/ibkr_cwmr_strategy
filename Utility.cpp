@@ -1,5 +1,6 @@
 #include "Utility.h"
 
+#include <array>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -107,21 +108,59 @@ std::string Utility::getOptionExerciseTypeName(OptionExerciseType optionExercise
 }
 
 std::vector<std::uint8_t> Utility::base64Decode(const std::string& encodedString) {
+	int i = 0;
+	
+	std::array<uint8_t, 4> char_array_4{};
+	std::array<uint8_t, 3> char_array_3{};
 
+	std::vector<uint8_t> decodedBytes{};
 
-	std::vector<std::uint8_t> decodedBytes;
-	//int val = 0, valb = -8;
-	//for (unsigned char c : encodedString) {
-	//	if (isspace(c)) continue; // Skip whitespace
-	//	if (c == '=') break; // Stop at padding character
-	//	auto pos = base64Chars.find(c);
-	//	if (pos == std::string::npos) continue; // Skip invalid characters
-	//	val = (val << 6) + pos;
-	//	valb += 6;
-	//	if (valb >= 0) {
-	//		decodedBytes.push_back(static_cast<std::uint8_t>((val >> valb) & 0xFF));
-	//		valb -= 8;
-	//	}
-	//}
+	decodedBytes.reserve((encodedString.size() * 3) / 4);
+
+	if (encodedString.empty()) {
+		return decodedBytes;
+	}
+
+	for (const char c : encodedString) {
+		if (isspace(c)) continue; // Skip whitespace
+		if (c == '=') break; // Stop at padding character
+		if (!isBase64(static_cast<std::uint8_t>(c))) continue; // Skip invalid characters
+
+		char_array_4[i++] = static_cast<std::uint8_t>(c);
+
+		if (i == 4) {
+			for (uint8_t& ch : char_array_4) {
+				ch = static_cast<std::uint8_t>(base64Chars.find(static_cast<char>(ch)));
+			}
+
+			char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+			char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+			char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+			decodedBytes.insert(decodedBytes.end(), char_array_3.begin(), char_array_3.end());
+			i = 0;
+			char_array_4.fill(0);
+		}
+	}
+
+	if (i > 0)
+	{
+		std::fill(char_array_4.begin() + i, char_array_4.end(), 0);
+
+		for (uint8_t& ch : char_array_4) {
+			ch = static_cast<std::uint8_t>(base64Chars.find(static_cast<char>(ch)));
+		}
+
+		char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+		char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+		char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+		decodedBytes.insert(decodedBytes.end(), char_array_3.begin(), char_array_3.begin() + (i - 1));
+	}
+
 	return decodedBytes;
+}
+
+bool Utility::isBase64(std::uint8_t c) {
+	return (isalnum(c) || (c == '+') || (c == '/'));
 }

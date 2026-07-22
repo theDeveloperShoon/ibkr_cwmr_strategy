@@ -20,6 +20,7 @@ public:
 	static std::string getOptionExerciseTypeName(OptionExerciseType optionExerciseType);
 
 	static std::vector<std::uint8_t> base64Decode(const std::string& encodedString);
+	static inline bool isBase64(std::uint8_t c);
 };
 
 #endif // !CWMR_STRATEGY_UTILITY_H
