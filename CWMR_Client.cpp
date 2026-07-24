@@ -9,6 +9,7 @@
 #include <print>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 
 CWMR_Client::CWMR_Client() : 
 	m_osSignal(2000),
@@ -460,9 +461,189 @@ void CWMR_Client::newsArticle(int reqId, int articleType, const std::string& art
 		std::println("News Article  Text (text or html): {}", articleText);
 	} else if (articleType == 1) {
 		const std::filesystem::path path = std::filesystem::current_path() / "MST$06f53098.pdf";
-
+		std::vector<std::uint8_t> bytes = Utility::base64Decode(articleText);
+		std::ofstream outFile(path, std::ios::out | std::ios::binary);
+		outFile.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+		
+		std::println("Binary/pdf article was saved to: {}", path);
 	}
-	// TODO:
+}
+
+void CWMR_Client::historicalNews(int reqId, const std::string& time, const std::string& providerCode,
+	const std::string& articleId, const std::string& headline) {}
+
+void CWMR_Client::historicalNewsEnd(int reqId, bool hasMore) {}
+
+void  CWMR_Client::headTimestamp(int reqId, const std::string& headTimestamp) {
+	std::println("Head Timestamp. ReqId: {}, HeadTimestamp: {}", reqId, headTimestamp);
+}
+
+void CWMR_Client::histogramData(int reqId, const HistogramDataVector& data) {
+	std::println("Histogram Data. ReqId: {}, DataSize: {}", reqId, data.size());
+
+	for (const HistogramEntry& histogramData : data) {
+		std::println("\tPrice: {}, Size: {}",
+			Utility::doubleMaxString(histogramData.price), DecimalFunctions::decimalStringToDisplay(histogramData.size));
+	}
+}
+
+void CWMR_Client::historicalDataUpdate(int reqId, const Bar& bar) {
+	std::println("Historical Data Update. ReqId: {}, Date: {}, Open: {}, High: {}, Low: {}, Close: {}, "
+		"Volume: {}, Count: {}, WAP: {}", reqId, bar.time, Utility::doubleMaxString(bar.open),
+		Utility::doubleMaxString(bar.high), Utility::doubleMaxString(bar.low), Utility::doubleMaxString(bar.close),
+		DecimalFunctions::decimalStringToDisplay(bar.volume), Utility::intMaxString(bar.count), DecimalFunctions::decimalStringToDisplay(bar.wap));
+}
+
+void CWMR_Client::rerouteMktDataReq(int reqId, int conId, const std::string& exchange) {
+	std::println("Reroute Market Data Request. ReqId: {}, ConId: {}, Exchange: {}", reqId, conId, exchange);
+}
+
+void CWMR_Client::rerouteMktDepthReq(int reqId, int conId, const std::string& exchange) {
+	std::println("Reroute Market Depth Request. ReqId: {}, ConId: {}, Exchange: {}", reqId, conId, exchange);
+}
+
+void CWMR_Client::marketRule(int marketRuleId, const std::vector<PriceIncrement>& priceIncrements) {
+	std::println("Market Rule. MarketRuleId: {}", marketRuleId);
+	for (const PriceIncrement& priceIncrement : priceIncrements) {
+		std::println("LowEdge: {}, Increment: {}, ", 
+			Utility::doubleMaxString(priceIncrement.lowEdge), 
+			Utility::doubleMaxString(priceIncrement.increment));
+	}
+}
+
+void CWMR_Client::pnl(int reqId, double dailyPnL, double unrealizedPnL, double realizedPnL) {
+	std::println("PnL. ReqId: {}, DailyPnL: {}, UnrealizedPnL: {}, RealizedPnL: {}",
+		reqId, Utility::doubleMaxString(dailyPnL), Utility::doubleMaxString(unrealizedPnL), 
+		Utility::doubleMaxString(realizedPnL));
+}
+
+void CWMR_Client::pnlSingle(int reqId, Decimal pos, double dailyPnL, 
+	double unrealizedPnL, double realizedPnL, double value) {
+	std::println("PnLSingle. ReqId: {}, Pos: {}, DailyPnL: {}, UnrealizedPnL: {}, RealizedPnL: {}, Value: {}",
+		reqId, DecimalFunctions::decimalStringToDisplay(pos), Utility::doubleMaxString(dailyPnL),
+		Utility::doubleMaxString(unrealizedPnL), Utility::doubleMaxString(realizedPnL),
+		Utility::doubleMaxString(value));
+}
+
+void CWMR_Client::historicalTicks(int reqId, const std::vector<HistoricalTick>& ticks, bool done) {
+	std::string timeString;
+	for (const HistoricalTick& tick : ticks) {
+		auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{tick.time} };
+		timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+		std::println("Historical Tick. ReqId: {}, Time: {}, Price: {}, Size: {}",
+			reqId, timeString,
+			Utility::doubleMaxString(tick.price), 
+			DecimalFunctions::decimalStringToDisplay(tick.size));
+	}
+}
+
+void CWMR_Client::historicalTicksBidAsk(int reqId, const std::vector<HistoricalTickBidAsk>& ticks, bool done) {
+	std::string timeString;
+	for (const HistoricalTickBidAsk& tick : ticks) {
+		auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{tick.time} };
+		timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+		std::println("Historical Tick Bid/Ask. ReqId: {}, Time: {}, Price Bid: {}, Price Ask: {}, Size Bid: {}, Size Ask: {}, "
+			"Bid Past Low: {}, Ask Past High: {}",
+			reqId, timeString,
+			Utility::doubleMaxString(tick.priceBid), Utility::doubleMaxString(tick.priceAsk),
+			DecimalFunctions::decimalStringToDisplay(tick.sizeBid), DecimalFunctions::decimalStringToDisplay(tick.sizeAsk),
+			Utility::doubleMaxString(tick.tickAttribBidAsk.bidPastLow), Utility::doubleMaxString(tick.tickAttribBidAsk.askPastHigh));
+	}
+}
+
+void CWMR_Client::historicalTicksLast(int reqId, const std::vector<HistoricalTickLast>& ticks, bool done) {
+	std::string timeString;
+	for (const HistoricalTickLast& tick : ticks) {
+		auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{tick.time} };
+		timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+		std::println("Historical Tick Last. ReqId: {}, Time: {}, Price: {}, Size: {}, Exchange: {}, Special Conditions: {}, "
+			"Unreported: {}, Past Limit: {}",
+			reqId, timeString,
+			Utility::doubleMaxString(tick.price), DecimalFunctions::decimalStringToDisplay(tick.size),
+			tick.exchange, tick.specialConditions,
+			tick.tickAttribLast.unreported, tick.tickAttribLast.pastLimit);
+	}
+}
+
+void CWMR_Client::tickByTickAllLast(int reqId, int tickType, time_t time, double price, Decimal size,
+	const TickAttribLast& tickAttribLast, const std::string& exchange, const std::string& specialConditions) {
+	std::string timeString;
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{time} };
+	timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+	
+	std::println("Tick By Tick All Last. ReqId: {}, TickType: {}, Time: {}, Price: {}, Size: {}, PastLimit: {}, "
+		"Unreported: {}, Special Conditions: {}",
+		reqId, (tickType == 1 ? "Last" : "AllLast"), timeString,
+		Utility::doubleMaxString(price), DecimalFunctions::decimalStringToDisplay(size),
+		exchange, specialConditions,
+		tickAttribLast.unreported, tickAttribLast.pastLimit);
+}
+
+void CWMR_Client::tickByTickBidAsk(int reqId, time_t time, double bidPrice, double askPrice,
+	Decimal bidSize, Decimal askSize, const TickAttribBidAsk& tickAttribBidAsk) {
+	std::string timeString;
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{time} };
+	timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+	
+	std::println("Tick By Tick Bid/Ask. ReqId: {}, Time: {}, BidPrice: {}, AskPrice: {}, "
+		"BidSize: {}, AskSize: {}, BidPastLow: {}, AskPastHigh: {}",
+		reqId, timeString,
+		Utility::doubleMaxString(bidPrice), Utility::doubleMaxString(askPrice),
+		DecimalFunctions::decimalStringToDisplay(bidSize), DecimalFunctions::decimalStringToDisplay(askSize),
+		tickAttribBidAsk.bidPastLow, tickAttribBidAsk.askPastHigh);
+}
+
+void CWMR_Client::tickByTickMidPoint(int reqId, time_t time, double midPoint) {
+	std::string timeString;
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{time} };
+	timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+
+	std::println("Tick By Tick Midpoint. ReqId: {}, Midpoint Time: {}, MidPoint: {}",
+		reqId, timeString, Utility::doubleMaxString(midPoint));
+}
+
+void CWMR_Client::orderBound(long long permId, int apiClientId, int apiOrderId) {
+	std::println("Order Bound. PermId: {}, ApiClientId: {}, ApiOrderId: {}",
+		Utility::llongMaxString(permId), Utility::intMaxString(apiClientId), Utility::intMaxString(apiOrderId));
+}
+
+void CWMR_Client::completedOrder(const Contract& contract, const Order& order, const OrderState& orderState) {}
+
+void CWMR_Client::completedOrdersEnd() {}
+
+void CWMR_Client::replaceFAEnd(int reqId, const std::string& text) {
+	std::println("Replace FA End. ReqId: {}, Text: {}", reqId, text);
+}
+
+void CWMR_Client::wshMetaData(int reqId, const std::string& dataJson) {
+	std::println("WSH Meta Data. ReqId: {}, DataJson: {}", reqId, dataJson);
+}
+
+void CWMR_Client::wshEventData(int reqId, const std::string& dataJson) {
+	std::println("WSH Event Data. ReqId: {}, DataJson: {}", reqId, dataJson);
+}
+
+void CWMR_Client::historicalSchedule(int reqId, const std::string& startDateTime,
+	const std::string& endDateTime,	const std::string& timeZone, 
+	const std::vector<HistoricalSession>& sessions) {
+	std::println("Historical Schedule. ReqId: {}, Start: {}, End: {}, TimeZone: {}",
+		reqId, startDateTime, endDateTime, timeZone);
+	for (const HistoricalSession& session : sessions) {
+		std::println("\tSession. Start: {}, End: {}, RefDate: {}", session.startDateTime, 
+			session.endDateTime, session.refDate);
+	}
+}
+
+void CWMR_Client::userInfo(int reqId, const std::string& whiteBrandingId) {
+	std::println("User Info. ReqId: {}, WhiteBrandingId: {}", reqId, whiteBrandingId);
+}
+
+void CWMR_Client::currentTimeInMillis(time_t timeInMillis) {
+	//TODO:
+	//std::string timeString;
+	//auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{timeInMillis} };
+	//timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+	//std::println("Current Time In Millis. TimeInMillis: {}, LocalTime: {}", Utility::llongMaxString(timeInMillis), timeString);
 }
 
 void CWMR_Client::printContractMsg(const Contract& contract) {
