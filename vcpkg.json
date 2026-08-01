@@ -1,0 +1,14 @@
+{
+  "name": "ibkrmeanreversionstrategy",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "intelrdfpmathlib",
+    "protobuf"
+  ],
+  "overrides": [
+    {
+      "name": "protobuf",
+      "version": "5.29.5#2"
+    }
+  ]
+}

@@ -1,0 +1,988 @@
+#include "CWMR_Client.h"
+
+#include "Utility.h"
+
+#include "EClientSocket.h"
+#include "Execution.h"
+#include "CommissionAndFeesReport.h"
+
+#include <print>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+
+CWMR_Client::CWMR_Client() : 
+	m_osSignal(2000),
+	m_pClient(new EClientSocket(this, &m_osSignal)),
+	m_pReader(nullptr),
+	m_orderId(0),
+	m_extraAuth(false)
+{
+}
+
+CWMR_Client::~CWMR_Client()
+{
+	if (m_pReader)
+	{
+		m_pReader.reset();
+	}
+
+	delete m_pClient;
+}
+
+void CWMR_Client::setConnectOptions(const std::string& connectOptions)
+{
+	m_pClient->setConnectOptions(connectOptions);
+}
+
+void CWMR_Client::processMessages()
+{
+	m_osSignal.waitForSignal();
+	errno = 0;
+	m_pReader->processMsgs();
+}
+
+bool CWMR_Client::connect(const std::string& host, int port, int clientId)
+{
+	std::string targetHost = host.empty() ? "127.0.0.1" : host;
+
+	std::println("Connecting to {}:{} clientId {}", targetHost, port, clientId);
+
+	bool bRes = m_pClient->eConnect(targetHost.c_str(), port, clientId, m_extraAuth);
+
+	if (bRes)
+	{
+		std::println("Connnected to {}:{} clientId:{} serverVersion: {}", m_pClient->host(), m_pClient->port(), clientId, m_pClient->EClient::serverVersion());
+
+		m_pReader = std::make_unique<EReader>(m_pClient, &m_osSignal);
+		m_pReader->start();
+	}
+	else
+	{
+		std::println(std::cerr, "Cannot connect to {}:{} clientId{}", m_pClient->host(), m_pClient->port(), clientId);
+	}
+
+	return bRes;
+}
+
+bool CWMR_Client::isConnected() const
+{
+	return m_pClient->isConnected();
+}
+
+// RHT is Regular Trading HGours
+void CWMR_Client::requestHistoricalData(int reqId, const Contract& contract,const std::string& endDateTime, const std::string& durationTime, const std::string& barSizeSetting,
+	const std::string whatToShow, int useRTH, int formatDate, bool keepUpToDate, const TagValueListSPtr& chartOptions)
+{
+	if (this->isConnected())
+	{
+		m_pClient->reqHistoricalData(
+			reqId,
+			contract, 
+			endDateTime,
+			durationTime,
+			barSizeSetting,
+			whatToShow,
+			useRTH,
+			formatDate,
+			keepUpToDate,
+			chartOptions
+		);
+	}
+}
+
+
+[[maybe_unused]] void CWMR_Client::tickPrice([[maybe_unused]] int reqId, [[maybe_unused]] TickType field, [[maybe_unused]] double price, [[maybe_unused]] const TickAttrib& attribs) {}
+[[maybe_unused]] void CWMR_Client::tickSize([[maybe_unused]] int reqId, [[maybe_unused]] TickType field, [[maybe_unused]] Decimal size) {}
+[[maybe_unused]] void CWMR_Client::tickOptionComputation([[maybe_unused]] int reqId, [[maybe_unused]] TickType tickType, [[maybe_unused]] int tickAttrib, [[maybe_unused]] double impliedVol, [[maybe_unused]] double delta,
+	[[maybe_unused]] double optPrice, [[maybe_unused]] double pvDividend, [[maybe_unused]] double gamma, [[maybe_unused]] double vega, [[maybe_unused]] double theta, [[maybe_unused]] double undPrice) {
+}
+[[maybe_unused]] void CWMR_Client::tickGeneric([[maybe_unused]] int reqId, [[maybe_unused]] TickType tickType, [[maybe_unused]] double value) {}
+[[maybe_unused]] void CWMR_Client::tickString([[maybe_unused]] int reqId, [[maybe_unused]] TickType tickType, [[maybe_unused]] const std::string& value) {}
+[[maybe_unused]] void CWMR_Client::tickEFP([[maybe_unused]] int reqId, [[maybe_unused]] TickType tickType, [[maybe_unused]] double basisPoints, [[maybe_unused]] const std::string& formattedBasisPoints,
+	[[maybe_unused]] double totalDividends, [[maybe_unused]] int holdDays, [[maybe_unused]] const std::string& futureLastTradeDate, [[maybe_unused]] double dividendImpact, [[maybe_unused]] double dividendsToLastTradeDate) {
+}
+
+[[maybe_unused]] void CWMR_Client::orderStatus(
+	[[maybe_unused]] int orderId, 
+	[[maybe_unused]] const std::string& status, 
+	[[maybe_unused]] Decimal filled,
+	[[maybe_unused]] Decimal remaining, 
+	[[maybe_unused]] double avgFillPrice, 
+	[[maybe_unused]] long long permId, 
+	[[maybe_unused]] int parentId,
+	[[maybe_unused]] double lastFillPrice, 
+	[[maybe_unused]] int clientId, 
+	[[maybe_unused]] const std::string& whyHeld, 
+	[[maybe_unused]] double mktCapPrice) 
+{}
+[[maybe_unused]] void CWMR_Client::openOrder([[maybe_unused]] int orderId, [[maybe_unused]] const Contract&, [[maybe_unused]] const Order&, [[maybe_unused]] const OrderState&) {}
+[[maybe_unused]] void CWMR_Client::openOrderEnd() {}
+
+[[maybe_unused]] void CWMR_Client::winError([[maybe_unused]] const std::string& str, [[maybe_unused]] int lastError) {}
+
+void CWMR_Client::connectionClosed() {
+	std::println("Connection closed");
+}
+
+void CWMR_Client::updateAccountValue(const std::string& key, const std::string& val,
+	const std::string& currency, const std::string& accountName) {
+	std::println("Account Value. Key: {}, Value: {}, Currency: {}, AccountName: {}", key, val, currency, accountName);
+}
+
+void CWMR_Client::updatePortfolio(const Contract& contract, Decimal position,
+	double marketPrice, double marketValue, double averageCost,
+	double unrealizedPNL, double realizedPNL, const std::string& accountName) {
+	std::println("Update Portfolio. Symbol: {}, SecType: {}, Currency: {}, Position: {}, MarketPrice: {}, MarketValue: {}, AverageCost: {}, UnrealizedPNL: {}, RealizedPNL: {}, AccountName: {}",
+		contract.symbol, contract.secType, contract.currency, (unsigned long long)position, marketPrice, marketValue, averageCost, unrealizedPNL, realizedPNL, accountName);
+}
+
+void CWMR_Client::updateAccountTime(const std::string& timeStamp) {
+	std::println("Update Account Time. Time: {}", timeStamp);
+}
+
+void CWMR_Client::accountDownloadEnd(const std::string& accountName) {
+	std::println("Account Download End. AccountName: {}", accountName);
+}
+
+void CWMR_Client::nextValidId(int orderId) {
+	std::println("Next Valid Id: {}", orderId);
+	m_orderId = orderId;
+}
+
+void CWMR_Client::contractDetails(int reqId, const ContractDetails& contractDetails) {
+	std::println("ContractDetails begin. ReqId: {}", reqId);
+	printContractMsg(contractDetails.contract);
+	printContractDetailsMsg(contractDetails);
+	std::println("ContractDetails end. ReqId: {}", reqId);
+}
+
+void CWMR_Client::bondContractDetails(int reqId, const ContractDetails& contractDetails) {
+	std::println("BondContractDetails begin. ReqId: {}", reqId);
+	printBondContractDetailsMsg(contractDetails);
+	std::println("BondContractDetails end. ReqId: {}", reqId);
+}
+
+void CWMR_Client::contractDetailsEnd(int reqId) {
+	std::println("ContractDetailsEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::execDetails(int reqId, const Contract& contract, const Execution& execution) {
+	std::println("ExecDetails. ReqId: {}, Contnract - ConId: {}, Symbol: {}, SecType: {}, "
+		"LastTradeDateOrContractMonth: {}, Strike: {}, Right: {}, Multiplier: {}, "
+		"Exchange: {}, Currency: {}, LocalSymbol: {}, TradingClass: {}, "
+		"Execution - OrderId: {}, ExecId: {}, Time: {}, AcctNumber: {}, "
+		"Exchange: {}, Side: {}, Shares: {}, Price: {}, PermId: {}, CllientId: {}, "
+		"Liquidation: {}, CumQty: {}, AvgPrice: {}, OrderRef: {}, EvRule: {}, "
+		"EvMultiplier: {}, ModelCode: {}, LastLiquidity: {}, PrendingPriceRevision: {}, "
+		"Submitter: {}, OptExerciseOrLapeseType: {}",
+		reqId, contract.conId, contract.symbol, contract.secType,
+		contract.lastTradeDateOrContractMonth, Utility::doubleMaxString(contract.strike),
+		contract.right, contract.multiplier, contract.exchange, contract.currency, contract.localSymbol,
+		contract.tradingClass, Utility::intMaxString(execution.orderId), execution.execId, execution.time, execution.acctNumber,
+		execution.exchange, execution.side, DecimalFunctions::decimalStringToDisplay(execution.shares), Utility::doubleMaxString(execution.price), Utility::llongMaxString(execution.permId), 
+		Utility::intMaxString(execution.clientId),
+		execution.liquidation == 1 ? "True" : "False", DecimalFunctions::decimalStringToDisplay(execution.cumQty), Utility::doubleMaxString(execution.avgPrice), execution.orderRef, execution.evRule,
+		Utility::doubleMaxString(execution.evMultiplier), execution.modelCode, Utility::intMaxString(execution.lastLiquidity), 
+		execution.pendingPriceRevision ? "Yes" : "No",	execution.submitter, Utility::getOptionExerciseTypeName(execution.optExerciseOrLapseType));
+}
+
+void CWMR_Client::execDetailsEnd(int reqId){
+	std::println("ExecDetailsEnds. ReqId: {}", reqId);
+}
+
+void CWMR_Client::error(int id, time_t errorTime, int errorCode, const std::string& errorString,
+	const std::string& advancedOrderRejectJson) {
+	
+	std::string errorTimeStr;
+	if (errorTime > 0) {
+		auto tp = std::chrono::system_clock::time_point{
+			std::chrono::milliseconds{errorTime}
+		};
+		errorTimeStr = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+	}
+
+	if (!advancedOrderRejectJson.empty()) {
+		std::println("Error. Id: {}, Time: {}, Code: {}, Msg: {}, AdvancedOrderRejectJson: {}",
+			id, errorTimeStr, errorCode, errorString, advancedOrderRejectJson);
+	} 
+	else {
+		std::println("Error. Id: {}, Time: {}, Code: {}, Msg: {}", id, errorTimeStr, errorCode, errorString);
+	}
+}
+
+void CWMR_Client::updateMktDepth(int reqId, int position, int operation, int side, 
+	double price, Decimal size) {
+	std::println("UpdateMarketDepth. {} - Positionn: {}, Operation: {}, Side: {}, "
+		"Price: {}, Size: {}", reqId, Utility::intMaxString(position), operation, side,
+		Utility::doubleMaxString(price), DecimalFunctions::decimalStringToDisplay(size));
+}
+
+
+void CWMR_Client::updateMktDepthL2(int reqId, int position, [[maybe_unused]] const std::string& marketMaker,
+	int operation, int side, double price, Decimal size, bool isSmartDepth) {
+	std::println("UpdateMarketDepthL2. {} - Position: {}, Operation: {}, Side: {}, "
+		"Price: {}, Size: {}, isSmartDepth: {}", reqId, Utility::intMaxString(position),
+		operation, side, Utility::doubleMaxString(price), DecimalFunctions::decimalStringToDisplay(size),
+		isSmartDepth);
+}
+
+void CWMR_Client::updateNewsBulletin(int msgId, int msgType, const std::string& newMessage, const std::string& originExch){
+	std::println("News Bulletins. {} - Type: {}, Message: {}, Exhcange of Origin: {}",
+		msgId, msgType, newMessage, originExch);
+}
+
+void CWMR_Client::managedAccounts(const std::string& accountsList) {
+	std::println("Account List: {}", accountsList);
+}
+
+void CWMR_Client::receiveFA(faDataType pFaDataType, const std::string& cxml) {
+	std::println("Receiving Fa: {}", std::to_underlying(pFaDataType));
+	std::println("{}", cxml);
+}
+
+void CWMR_Client::historicalData(int reqId, const Bar& bar) {
+	std::println("HistoricalData. ReqId: {} - Date: {}, Open: {}, High: {}, Low: {}, "
+		"Close: {}, Volume: {}, Count: {}, WAP: {}", reqId, bar.time, Utility::doubleMaxString(bar.open),
+		Utility::doubleMaxString(bar.high), Utility::doubleMaxString(bar.low), Utility::doubleMaxString(bar.close),
+		DecimalFunctions::decimalStringToDisplay(bar.volume), Utility::intMaxString(bar.count), DecimalFunctions::decimalStringToDisplay(bar.wap));
+}
+
+void CWMR_Client::historicalDataEnd(int reqId, const std::string& startDateStr, const std::string& endDateStr) {
+	std::println("HistoricalDataEnd. ReqId: {}, StartDate: {}, EndDate: {}", reqId, startDateStr, endDateStr);
+}
+
+void CWMR_Client::scannerParameters(const std::string& xml) {
+	std::println("ScannerParameters. {}", xml);
+}
+
+void CWMR_Client::scannerData(int reqId, int rank, const ContractDetails& contractDetails,
+	const std::string& distance, const std::string& benchmark, const std::string& projection,
+	const std::string& legsStr) {
+	std::println("ScannerData. ReqId: {}, Rank: {}, Symbol: {}, SecType:{}, Currency: {}, "
+		"Distance: {}, Benchmark: {}, Projection: {}, Legs String: {}",
+		reqId, rank, contractDetails.contract.symbol, contractDetails.contract.secType, 
+		contractDetails.contract.currency, distance, benchmark, projection, legsStr);
+}
+
+void CWMR_Client::scannerDataEnd(int reqId) {
+	std::println("ScannerDataEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::realtimeBar(int reqId, long long time, double open, double high, double low,
+	double close, Decimal volume, Decimal wap, int count) {
+	std::println("RealTimeBar. ReqId: {} - Time: {}, Open: {}, High: {}, Low: {}, Close: {}, "
+		"Volume: {}, Count: {}, WAP: {}", reqId, Utility::llongMaxString(time), Utility::doubleMaxString(open), Utility::doubleMaxString(high),
+		Utility::doubleMaxString(low), Utility::doubleMaxString(close), DecimalFunctions::decimalStringToDisplay(volume),
+		Utility::intMaxString(count), DecimalFunctions::decimalStringToDisplay(wap));
+}
+
+void CWMR_Client::currentTime(long long time) {
+	const std::chrono::sys_seconds tp{std::chrono::seconds{time}};
+	const std::chrono::zoned_time localTp{std::chrono::current_zone(), tp};
+	const std::string localTimeStr = std::format("{:%Y-%m-%d %H:%M:%S}", localTp);
+
+	std::println("Current Time. Time: {}, Local Time: {}", Utility::llongMaxString(time), localTimeStr);
+
+	// TODO: ADD STATE
+}
+
+void CWMR_Client::fundamentalData(int reqId, const std::string& data) {
+	std::println("Fundamental Data Request ({}), {}",reqId, data);
+}
+
+
+void CWMR_Client::deltaNeutralValidation(int reqId, const DeltaNeutralContract& deltaNeutralContract) {
+	std::println("DeltaNeutralValidation. ReqId: {}, ConId: {}, Delta: {}, Price: {}",
+		reqId, deltaNeutralContract.conId, Utility::doubleMaxString(deltaNeutralContract.delta),
+		Utility::doubleMaxString(deltaNeutralContract.price));
+}
+
+void CWMR_Client::tickSnapshotEnd(int reqId) {
+	std::println("TickSnapshotEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::marketDataType(int reqId, int marketDataType) {
+	std::println("MarketDataType. ReqId: {}, MarketDataType: {}", reqId, marketDataType);
+}
+
+void CWMR_Client::commissionAndFeesReport(const CommissionAndFeesReport& commissionAndFeesReport) {
+	std::println("CommissionAndFeesReport. ExecId: {}, CommissionAndFees: {}, Currency: {}, RealizedPNL: {}",
+		commissionAndFeesReport.execId, commissionAndFeesReport.commissionAndFees, commissionAndFeesReport.currency,
+		commissionAndFeesReport.realizedPNL);
+}
+
+void CWMR_Client::position(const std::string& account, const Contract& contract, Decimal position, double avgCost) {
+	std::println("Position. Account: {}, Symbol: {}, SecType: {}, Currency: {}, Position: {}, AvgCost: {}",
+		account, contract.symbol, contract.secType, contract.currency, 
+		DecimalFunctions::decimalStringToDisplay(position), 
+		Utility::doubleMaxString(avgCost));
+}
+
+void CWMR_Client::positionEnd() {
+	std::println("PositionEnd");
+}
+
+void CWMR_Client::accountSummary(int reqId, const std::string& account, const std::string& tag,
+	const std::string& value, const std::string& currency) {
+	std::println("AccountSummary. ReqId: {}, Account: {}, Tag: {}, Value: {}, Currency: {}",
+		reqId, account, tag, value, currency);
+}
+
+void CWMR_Client::accountSummaryEnd(int reqId) {
+	std::println("AccountSummaryEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::verifyMessageAPI(const std::string& apiData) {
+	std::println("VerifyMessageAPI. ApiData: {}", apiData);
+}
+
+void CWMR_Client::verifyCompleted(bool isSuccessful, const std::string& errorText) {
+	std::println("VerifyCompleted. IsSuccessful: {} - Error: {}", isSuccessful ? "Yes" : "No", errorText);
+}
+
+void CWMR_Client::displayGroupList(int reqId, const std::string& groups) {
+	std::println("DisplayGroupList. ReqId: {}, Groups: {}", reqId, groups);
+}
+
+void CWMR_Client::displayGroupUpdated(int reqId, const std::string& contractInfo) {
+	std::println("DisplayGroupUpdated. ReqId: {}, ContractInfo: {}", reqId, contractInfo);
+}
+
+void CWMR_Client::verifyAndAuthMessageAPI(const std::string& apiData, const std::string& xyzChallange) {
+	std::println("VerifyAndAuthMessageAPI. ApiData: {}, XyzChallenge: {}", apiData, xyzChallange);
+}
+
+void CWMR_Client::verifyAndAuthCompleted(bool isSuccessful, const std::string& errorText) {
+	std::println("VerifyAndAuthCompleted. IsSuccessful: {} - Error: {}", isSuccessful ? "Yes" : "No", errorText);
+	if (isSuccessful) m_pClient->startApi();
+}
+
+void CWMR_Client::connectAck() {
+	if (!m_extraAuth && m_pClient->asyncEConnect()) 
+		m_pClient->startApi();
+}
+
+void CWMR_Client::positionMulti(int reqId, const std::string& account, const std::string& modelCode,
+	const Contract& contract, Decimal pos, double avgCost) {
+	std::println("PositionMulti. ReqId: {}, Account: {}, ModelCode: {}, Symbol: {}, "
+		"SecType: {}, Currency: {}, Position: {}, AvgCost: {}", reqId, account, 
+		modelCode, contract.symbol, contract.secType, contract.currency,
+		DecimalFunctions::decimalStringToDisplay(pos), Utility::doubleMaxString(avgCost));
+}
+
+void CWMR_Client::positionMultiEnd(int reqId) {
+	std::println("PositionMultiEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::accountUpdateMulti(int reqId, const std::string& account, const std::string& modelCode,
+	const std::string& key, const std::string& value, const std::string& currency) {
+	std::println("AccountUpdateMulti. ReqId: {}, Account: {}, ModelCode: {}, Key: {}, Value: {}, Currency: {}",
+		reqId, account, modelCode, key, value, currency);
+}
+
+void CWMR_Client::accountUpdateMultiEnd(int reqId) {
+	std::println("AccountUpdateMultiEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::securityDefinitionOptionalParameter(int reqId, const std::string& exchange,
+	int underlyingConId, const std::string& tradingClass, const std::string& multiplier,
+	const std::set<std::string>& expirations, const std::set<double>& strikes) {
+	std::println("SecurityDefinitionOptionalParameter. ReqId: {}, Exchange: {}, "
+		"UnderlyingConId: {}, TradingClass: {}, Multiplier: {}, Expirations: {}",
+		reqId, exchange, underlyingConId, tradingClass, multiplier,
+		expirations.size());
+
+	bool first = true;
+	for (const auto& exp : expirations) {
+		std::print("{}{}", first ? "" : ", ", exp);
+		first = false;
+	}
+
+	std::print(", Strikes ({}): ", strikes.size());
+	first = true;
+	for (const auto& strike : strikes) {
+		std::print("{}{:.2f}", first ? "" : ", ", strike);
+		first = false;
+	}
+	std::println();
+}
+
+void CWMR_Client::securityDefinitionOptionalParameterEnd(int reqId) {
+	std::println("SecurityDefinitionOptionalParameterEnd. ReqId: {}", reqId);
+}
+
+void CWMR_Client::softDollarTiers(int reqId, const std::vector<SoftDollarTier>& tiers) {
+	std::println("SoftDollarTiers. ReqId: {}, Tiers: {}", reqId, tiers.size());
+
+	for (const SoftDollarTier& tier : tiers) {
+		printSoftDollarTier(tier);
+	}
+}
+
+void CWMR_Client::familyCodes(const std::vector<FamilyCode>& familyCodes) {
+	std::println("Family Codes ({})", familyCodes.size());
+	for (const FamilyCode& familyCode : familyCodes) {
+		std::println("Family Code accountId: {} familyCodeStr: {}", 
+			familyCode.accountID, familyCode.familyCodeStr);
+	}
+}
+
+void CWMR_Client::symbolSamples(int reqId, const std::vector<ContractDescription>& contractDescriptions) {
+	std::println("Symbol Samples (total={}) reqId: {}", contractDescriptions.size(), reqId);
+
+	for (const ContractDescription& contractDescription : contractDescriptions) {
+		const Contract& contract = contractDescription.contract;
+		const std::vector<std::string>& derivativeSecTypes = contractDescription.derivativeSecTypes;
+		
+		std::print("Contract ({}): conId: {}, symbol: {}, secType: {}, primaryExchange: {}, currency: {}, ", 
+			reqId ,contract.conId, contract.symbol, contract.secType, contract.primaryExchange, contract.currency);
+		std::print("DerivativeSecTypes: ({}):", derivativeSecTypes.size());
+
+		for (const std::string& derivativeSecType : derivativeSecTypes) {
+			std::print(" {}", derivativeSecType);
+		}
+		std::print(", description: {}, issuerId: {}", contract.description, 
+			contract.issuerId);
+		std::println();
+	}
+}
+
+void CWMR_Client::mktDepthExchanges(const std::vector<DepthMktDataDescription>& depthMktDataDescriptions) {
+	std::println("Market Depth Exchanges (total={})", depthMktDataDescriptions.size());
+
+	for (const DepthMktDataDescription& depthMktDataDescription : depthMktDataDescriptions) {
+		std::println("Depth Market Data Description: exchange: {}, secType: {}, listingExch: {}, "
+			"serviceDataType: {}, aggGroup: {}", depthMktDataDescription.exchange,
+			depthMktDataDescription.secType, depthMktDataDescription.listingExch,
+			depthMktDataDescription.serviceDataType, depthMktDataDescription.aggGroup);
+	}
+}
+
+void CWMR_Client::tickNews(int reqId, time_t timeStamp, const std::string& providerCode,
+	const std::string& articleId, const std::string& headline, const std::string& extraData) {
+	std::string timeString;
+
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{timeStamp} };
+	timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+
+	std::println("Tick News. ReqId: {}, TimeStamp: {}, ProviderCode: {}, ArticleId: {}, Headline: {}, ExtraData: {}",
+		reqId, timeString, providerCode, articleId, headline, extraData);
+}
+
+void CWMR_Client::smartComponents([[maybe_unused]]int reqId, const SmartComponentsMap& theMap) {
+	std::println("Smart Components. ({}):", theMap.size());
+
+	for (const auto& [bitNumber, smartComponent] : theMap) {
+		const auto& [exchange, exchangeLetter] = smartComponent;
+		std::println(" BitNumber: {}, Exchange: {}, ExchangeLetter: {}",
+			bitNumber, exchange, exchangeLetter);
+	}
+}
+
+void CWMR_Client::tickReqParams(int reqId, double minTick, const std::string& bboExchange,
+	int snapshotPermissions) {
+	std::println("Tick Req Params. TickerId: {}, MinTick: {}, BBOExchange: {}, SnapshotPermissions: {}",
+		reqId, Utility::doubleMaxString(minTick), bboExchange, snapshotPermissions);
+}
+
+void CWMR_Client::newsProviders(const std::vector<NewsProvider>& newsProviders) {
+	std::println("News Providers ({}):", newsProviders.size());
+
+	for (const NewsProvider& newsProvider : newsProviders) {
+		std::println("News Provider - ProviderCode: {}, ProviderName: {}", newsProvider.providerCode, newsProvider.providerName);
+	}
+}
+
+void CWMR_Client::newsArticle(int reqId, int articleType, const std::string& articleText) {
+	std::println("News Article. ReqId: {}, ArticleType: {}", reqId, articleType);
+	if (articleType == 0) {
+		std::println("News Article  Text (text or html): {}", articleText);
+	} else if (articleType == 1) {
+		const std::filesystem::path path = std::filesystem::current_path() / "MST$06f53098.pdf";
+		std::vector<std::uint8_t> bytes = Utility::base64Decode(articleText);
+		std::ofstream outFile(path, std::ios::out | std::ios::binary);
+		outFile.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+		
+		std::println("Binary/pdf article was saved to: {}", path.generic_string());
+	}
+}
+
+void CWMR_Client::historicalNews([[maybe_unused]] int reqId, [[maybe_unused]] const std::string& time, [[maybe_unused]] const std::string& providerCode,
+	[[maybe_unused]] const std::string& articleId, [[maybe_unused]] const std::string& headline) {}
+
+void CWMR_Client::historicalNewsEnd([[maybe_unused]] int reqId, [[maybe_unused]] bool hasMore) {}
+
+void CWMR_Client::headTimestamp(int reqId, const std::string& headTimestamp) {
+	std::println("Head Timestamp. ReqId: {}, HeadTimestamp: {}", reqId, headTimestamp);
+}
+
+void CWMR_Client::histogramData(int reqId, const HistogramDataVector& data) {
+	std::println("Histogram Data. ReqId: {}, DataSize: {}", reqId, data.size());
+
+	for (const HistogramEntry& histogramData : data) {
+		std::println("\tPrice: {}, Size: {}",
+			Utility::doubleMaxString(histogramData.price), DecimalFunctions::decimalStringToDisplay(histogramData.size));
+	}
+}
+
+void CWMR_Client::historicalDataUpdate(int reqId, const Bar& bar) {
+	std::println("Historical Data Update. ReqId: {}, Date: {}, Open: {}, High: {}, Low: {}, Close: {}, "
+		"Volume: {}, Count: {}, WAP: {}", reqId, bar.time, Utility::doubleMaxString(bar.open),
+		Utility::doubleMaxString(bar.high), Utility::doubleMaxString(bar.low), Utility::doubleMaxString(bar.close),
+		DecimalFunctions::decimalStringToDisplay(bar.volume), Utility::intMaxString(bar.count), DecimalFunctions::decimalStringToDisplay(bar.wap));
+}
+
+void CWMR_Client::rerouteMktDataReq(int reqId, int conId, const std::string& exchange) {
+	std::println("Reroute Market Data Request. ReqId: {}, ConId: {}, Exchange: {}", reqId, conId, exchange);
+}
+
+void CWMR_Client::rerouteMktDepthReq(int reqId, int conId, const std::string& exchange) {
+	std::println("Reroute Market Depth Request. ReqId: {}, ConId: {}, Exchange: {}", reqId, conId, exchange);
+}
+
+void CWMR_Client::marketRule(int marketRuleId, const std::vector<PriceIncrement>& priceIncrements) {
+	std::println("Market Rule. MarketRuleId: {}", marketRuleId);
+	for (const PriceIncrement& priceIncrement : priceIncrements) {
+		std::println("LowEdge: {}, Increment: {}, ", 
+			Utility::doubleMaxString(priceIncrement.lowEdge), 
+			Utility::doubleMaxString(priceIncrement.increment));
+	}
+}
+
+void CWMR_Client::pnl(int reqId, double dailyPnL, double unrealizedPnL, double realizedPnL) {
+	std::println("PnL. ReqId: {}, DailyPnL: {}, UnrealizedPnL: {}, RealizedPnL: {}",
+		reqId, Utility::doubleMaxString(dailyPnL), Utility::doubleMaxString(unrealizedPnL), 
+		Utility::doubleMaxString(realizedPnL));
+}
+
+void CWMR_Client::pnlSingle(int reqId, Decimal pos, double dailyPnL, 
+	double unrealizedPnL, double realizedPnL, double value) {
+	std::println("PnLSingle. ReqId: {}, Pos: {}, DailyPnL: {}, UnrealizedPnL: {}, RealizedPnL: {}, Value: {}",
+		reqId, DecimalFunctions::decimalStringToDisplay(pos), Utility::doubleMaxString(dailyPnL),
+		Utility::doubleMaxString(unrealizedPnL), Utility::doubleMaxString(realizedPnL),
+		Utility::doubleMaxString(value));
+}
+
+void CWMR_Client::historicalTicks(int reqId, const std::vector<HistoricalTick>& ticks,[[maybe_unused]] bool done) {
+	std::string timeString;
+	for (const HistoricalTick& tick : ticks) {
+		auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{tick.time} };
+		timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+		std::println("Historical Tick. ReqId: {}, Time: {}, Price: {}, Size: {}",
+			reqId, timeString,
+			Utility::doubleMaxString(tick.price), 
+			DecimalFunctions::decimalStringToDisplay(tick.size));
+	}
+}
+
+void CWMR_Client::historicalTicksBidAsk(int reqId, const std::vector<HistoricalTickBidAsk>& ticks,[[maybe_unused]] bool done) {
+	std::string timeString;
+	for (const HistoricalTickBidAsk& tick : ticks) {
+		auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{tick.time} };
+		timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+		std::println("Historical Tick Bid/Ask. ReqId: {}, Time: {}, Price Bid: {}, Price Ask: {}, Size Bid: {}, Size Ask: {}, "
+			"Bid Past Low: {}, Ask Past High: {}",
+			reqId, timeString,
+			Utility::doubleMaxString(tick.priceBid), Utility::doubleMaxString(tick.priceAsk),
+			DecimalFunctions::decimalStringToDisplay(tick.sizeBid), DecimalFunctions::decimalStringToDisplay(tick.sizeAsk),
+			Utility::doubleMaxString(tick.tickAttribBidAsk.bidPastLow), Utility::doubleMaxString(tick.tickAttribBidAsk.askPastHigh));
+	}
+}
+
+void CWMR_Client::historicalTicksLast(int reqId, const std::vector<HistoricalTickLast>& ticks,[[maybe_unused]] bool done) {
+	std::string timeString;
+	for (const HistoricalTickLast& tick : ticks) {
+		auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{tick.time} };
+		timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+		std::println("Historical Tick Last. ReqId: {}, Time: {}, Price: {}, Size: {}, Exchange: {}, Special Conditions: {}, "
+			"Unreported: {}, Past Limit: {}",
+			reqId, timeString,
+			Utility::doubleMaxString(tick.price), DecimalFunctions::decimalStringToDisplay(tick.size),
+			tick.exchange, tick.specialConditions,
+			tick.tickAttribLast.unreported, tick.tickAttribLast.pastLimit);
+	}
+}
+
+void CWMR_Client::tickByTickAllLast(int reqId, int tickType, time_t time, double price, Decimal size,
+	const TickAttribLast& tickAttribLast, const std::string& exchange, const std::string& specialConditions) {
+	std::string timeString;
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{time} };
+	timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+	
+	std::println("Tick By Tick All Last. ReqId: {}, TickType: {}, Time: {}, Price: {}, Size: {}, PastLimit: {}, "
+		"Unreported: {}, Special Conditions: {}",
+		reqId, (tickType == 1 ? "Last" : "AllLast"), timeString,
+		Utility::doubleMaxString(price), DecimalFunctions::decimalStringToDisplay(size),
+		exchange, specialConditions,
+		tickAttribLast.unreported, tickAttribLast.pastLimit);
+}
+
+void CWMR_Client::tickByTickBidAsk(int reqId, time_t time, double bidPrice, double askPrice,
+	Decimal bidSize, Decimal askSize, const TickAttribBidAsk& tickAttribBidAsk) {
+	std::string timeString;
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{time} };
+	timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+	
+	std::println("Tick By Tick Bid/Ask. ReqId: {}, Time: {}, BidPrice: {}, AskPrice: {}, "
+		"BidSize: {}, AskSize: {}, BidPastLow: {}, AskPastHigh: {}",
+		reqId, timeString,
+		Utility::doubleMaxString(bidPrice), Utility::doubleMaxString(askPrice),
+		DecimalFunctions::decimalStringToDisplay(bidSize), DecimalFunctions::decimalStringToDisplay(askSize),
+		tickAttribBidAsk.bidPastLow, tickAttribBidAsk.askPastHigh);
+}
+
+void CWMR_Client::tickByTickMidPoint(int reqId, time_t time, double midPoint) {
+	std::string timeString;
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{time} };
+	timeString = std::format("{:%c}", std::chrono::floor<std::chrono::seconds>(tp));
+
+	std::println("Tick By Tick Midpoint. ReqId: {}, Midpoint Time: {}, MidPoint: {}",
+		reqId, timeString, Utility::doubleMaxString(midPoint));
+}
+
+void CWMR_Client::orderBound(long long permId, int apiClientId, int apiOrderId) {
+	std::println("Order Bound. PermId: {}, ApiClientId: {}, ApiOrderId: {}",
+		Utility::llongMaxString(permId), Utility::intMaxString(apiClientId), Utility::intMaxString(apiOrderId));
+}
+
+void CWMR_Client::completedOrder([[maybe_unused]] const Contract& contract, [[maybe_unused]] const Order& order, [[maybe_unused]] const OrderState& orderState) {}
+
+void CWMR_Client::completedOrdersEnd() {}
+
+void CWMR_Client::replaceFAEnd(int reqId, const std::string& text) {
+	std::println("Replace FA End. ReqId: {}, Text: {}", reqId, text);
+}
+
+void CWMR_Client::wshMetaData(int reqId, const std::string& dataJson) {
+	std::println("WSH Meta Data. ReqId: {}, DataJson: {}", reqId, dataJson);
+}
+
+void CWMR_Client::wshEventData(int reqId, const std::string& dataJson) {
+	std::println("WSH Event Data. ReqId: {}, DataJson: {}", reqId, dataJson);
+}
+
+void CWMR_Client::historicalSchedule(int reqId, const std::string& startDateTime,
+	const std::string& endDateTime,	const std::string& timeZone, 
+	const std::vector<HistoricalSession>& sessions) {
+	std::println("Historical Schedule. ReqId: {}, Start: {}, End: {}, TimeZone: {}",
+		reqId, startDateTime, endDateTime, timeZone);
+	for (const HistoricalSession& session : sessions) {
+		std::println("\tSession. Start: {}, End: {}, RefDate: {}", session.startDateTime, 
+			session.endDateTime, session.refDate);
+	}
+}
+
+void CWMR_Client::userInfo(int reqId, const std::string& whiteBrandingId) {
+	std::println("User Info. ReqId: {}, WhiteBrandingId: {}", reqId, whiteBrandingId);
+}
+
+void CWMR_Client::currentTimeInMillis(time_t timeInMillis) {
+	std::string timeString;
+	auto tp = std::chrono::system_clock::time_point{ std::chrono::milliseconds{timeInMillis} };
+
+	timeString = std::format("{:%F %T}", tp);
+	std::println("Current Time In Millis.  Time: {}.", 
+		timeString);
+}
+
+#if !defined(USE_WIN_DLL)
+[[maybe_unused]] void CWMR_Client::execDetailsProtoBuf([[maybe_unused]] const protobuf::ExecutionDetails& executionDetails) {}
+[[maybe_unused]] void CWMR_Client::execDetailsEndProtoBuf([[maybe_unused]] const protobuf::ExecutionDetailsEnd& executionDetailsEndProto) {}
+
+void CWMR_Client::orderStatusProtoBuf(const protobuf::OrderStatus& orderStatusProto) {
+	std::println("Order Status: {}", orderStatusProto.ShortDebugString());
+}
+
+void CWMR_Client::openOrderProtoBuf(const protobuf::OpenOrder& openOrderProto) {
+	std::println("Open Order: {}", openOrderProto.ShortDebugString());
+}
+
+void CWMR_Client::openOrdersEndProtoBuf(const protobuf::OpenOrdersEnd& openOrderEndProto) {
+	std::println("Open Order End: {}", openOrderEndProto.ShortDebugString());
+}
+
+[[maybe_unused]] void CWMR_Client::errorProtoBuf([[maybe_unused]] const protobuf::ErrorMessage& errorProto) {}
+
+void CWMR_Client::completedOrderProtoBuf(const protobuf::CompletedOrder& completedOrderProto) {
+	std::println("Completed Order: {}", completedOrderProto.ShortDebugString());
+}
+
+void CWMR_Client::completedOrdersEndProtoBuf(const protobuf::CompletedOrdersEnd& completedOrdersEndProto) {
+	std::println("Completed Orders End: {}", completedOrdersEndProto.ShortDebugString());
+}
+
+[[maybe_unused]] void CWMR_Client::orderBoundProtoBuf([[maybe_unused]] const protobuf::OrderBound& orderBoundProto) {}
+[[maybe_unused]] void CWMR_Client::contractDataEndProtoBuf([[maybe_unused]] const protobuf::ContractDataEnd& contractDataProto) {}
+[[maybe_unused]] void CWMR_Client::bondContractDataProtoBuf([[maybe_unused]] const protobuf::ContractData& contractDataProto) {}
+[[maybe_unused]] void CWMR_Client::contractDataProtoBuf([[maybe_unused]] const protobuf::ContractData& contractDataProto) {}
+
+void CWMR_Client::tickPriceProtoBuf(const protobuf::TickPrice& tickPriceProto) {
+	std::println("Tick Price: {}", tickPriceProto.ShortDebugString());
+}
+
+void CWMR_Client::tickSizeProtoBuf(const protobuf::TickSize& tickSizeProto) {
+	std::println("Tick Size: {}", tickSizeProto.ShortDebugString());
+}
+
+void CWMR_Client::tickOptionComputationProtoBuf(const protobuf::TickOptionComputation& tickOptionComputationProto) {
+	std::println("Tick Option Computation: {}", tickOptionComputationProto.ShortDebugString());
+}
+
+void CWMR_Client::tickGenericProtoBuf(const protobuf::TickGeneric& tickGenericProto) {
+	std::println("Tick Generic: {}", tickGenericProto.ShortDebugString());
+}
+
+void CWMR_Client::tickStringProtoBuf(const protobuf::TickString& tickStringProto) {
+	std::println("Tick String: {}", tickStringProto.ShortDebugString());
+}
+
+void CWMR_Client::tickSnapshotEndProtoBuf(const protobuf::TickSnapshotEnd& tickSnapshotEndProto) {
+	std::println("Tick Snapshot End: {}", tickSnapshotEndProto.ShortDebugString());
+}
+
+[[maybe_unused]] void CWMR_Client::updateMarketDepthProtoBuf([[maybe_unused]] const protobuf::MarketDepth& marketDepthProto) {}
+[[maybe_unused]] void CWMR_Client::updateMarketDepthL2ProtoBuf([[maybe_unused]] const protobuf::MarketDepthL2& marketDepthL2Proto) {}
+[[maybe_unused]] void CWMR_Client::marketDataTypeProtoBuf([[maybe_unused]] const protobuf::MarketDataType& marketDataTypeProto) {}
+
+void CWMR_Client::tickReqParamsProtoBuf(const protobuf::TickReqParams& tickReqParamsProto) {
+	std::string out;
+
+	auto append = [&out](std::string_view label, const auto& value) {
+		if (!out.empty()) out += ", ";
+
+		out += std::format("{}: {}", label, value);
+	};
+
+	if (tickReqParamsProto.has_reqid()) append("ReqId", tickReqParamsProto.reqid());
+	if (tickReqParamsProto.has_mintick()) append("MinTick", tickReqParamsProto.mintick());
+	if (tickReqParamsProto.has_bboexchange()){
+		append("BBOExchange", tickReqParamsProto.bboexchange()); 
+	}
+	if (tickReqParamsProto.has_snapshotpermissions()) append("SnapshotPermissions", tickReqParamsProto.snapshotpermissions());
+	if (tickReqParamsProto.has_lastpriceprecision()) append("LastPricePrecision", tickReqParamsProto.lastpriceprecision());
+	if (tickReqParamsProto.has_lastsizeprecision()) append("LastSizePrecision", tickReqParamsProto.lastsizeprecision());
+
+	std::println("Tick Req Params: {}", out);
+}
+
+[[maybe_unused]] void CWMR_Client::updateAccountValueProtoBuf([[maybe_unused]] const protobuf::AccountValue& accountValueProto) {}
+[[maybe_unused]] void CWMR_Client::updatePortfolioProtoBuf([[maybe_unused]] const protobuf::PortfolioValue& portfolioValueProto) {}
+[[maybe_unused]] void CWMR_Client::updateAccountTimeProtoBuf([[maybe_unused]] const protobuf::AccountUpdateTime& accountTimeProto) {}
+[[maybe_unused]] void CWMR_Client::accountDataEndProtoBuf([[maybe_unused]] const protobuf::AccountDataEnd& accountDownloadEndProto) {}
+[[maybe_unused]] void CWMR_Client::managedAccountsProtoBuf([[maybe_unused]] const protobuf::ManagedAccounts& managedAccountsProto) {}
+[[maybe_unused]] void CWMR_Client::positionProtoBuf([[maybe_unused]] const protobuf::Position& positionProto) {}
+[[maybe_unused]] void CWMR_Client::positionEndProtoBuf([[maybe_unused]] const protobuf::PositionEnd& positionEndProto) {}
+[[maybe_unused]] void CWMR_Client::accountSummaryProtoBuf([[maybe_unused]] const protobuf::AccountSummary& accountSummaryProto) {}
+[[maybe_unused]] void CWMR_Client::accountSummaryEndProtoBuf([[maybe_unused]] const protobuf::AccountSummaryEnd& accountSummaryEndProto) {}
+[[maybe_unused]] void CWMR_Client::positionMultiProtoBuf([[maybe_unused]] const protobuf::PositionMulti& positionMultiProto) {}
+[[maybe_unused]] void CWMR_Client::positionMultiEndProtoBuf([[maybe_unused]] const protobuf::PositionMultiEnd& positionMultiEndProto) {}
+[[maybe_unused]] void CWMR_Client::accountUpdateMultiProtoBuf([[maybe_unused]] const protobuf::AccountUpdateMulti& accountUpdateMultiProto) {}
+[[maybe_unused]] void CWMR_Client::accountUpdateMultiEndProtoBuf([[maybe_unused]] const protobuf::AccountUpdateMultiEnd& accountUpdateMultiEndProto) {}
+[[maybe_unused]] void CWMR_Client::historicalDataProtoBuf([[maybe_unused]] const protobuf::HistoricalData& historicalDataProto) {}
+[[maybe_unused]] void CWMR_Client::historicalDataUpdateProtoBuf([[maybe_unused]] const protobuf::HistoricalDataUpdate& historicalDataUpdateProto) {}
+[[maybe_unused]] void CWMR_Client::historicalDataEndProtoBuf([[maybe_unused]] const protobuf::HistoricalDataEnd& historicalDataEndProto) {}
+[[maybe_unused]] void CWMR_Client::realTimeBarTickProtoBuf([[maybe_unused]] const protobuf::RealTimeBarTick& realTimeBarTickProto) {}
+[[maybe_unused]] void CWMR_Client::headTimestampProtoBuf([[maybe_unused]] const protobuf::HeadTimestamp& headTimestampProto) {}
+[[maybe_unused]] void CWMR_Client::histogramDataProtoBuf([[maybe_unused]] const protobuf::HistogramData& histogramDataProto) {}
+[[maybe_unused]] void CWMR_Client::historicalTicksProtoBuf([[maybe_unused]] const protobuf::HistoricalTicks& historicalTicksProto) {}
+[[maybe_unused]] void CWMR_Client::historicalTicksBidAskProtoBuf([[maybe_unused]] const protobuf::HistoricalTicksBidAsk& historicalTicksBidAskProto) {}
+[[maybe_unused]] void CWMR_Client::historicalTicksLastProtoBuf([[maybe_unused]] const protobuf::HistoricalTicksLast& historicalTicksLastProto) {}
+[[maybe_unused]] void CWMR_Client::tickByTickDataProtoBuf([[maybe_unused]] const protobuf::TickByTickData& tickByTickDataProto) {}
+[[maybe_unused]] void CWMR_Client::updateNewsBulletinProtoBuf([[maybe_unused]] const protobuf::NewsBulletin& newsBulletinProto) {}
+[[maybe_unused]] void CWMR_Client::newsArticleProtoBuf([[maybe_unused]] const protobuf::NewsArticle& newsArticleProto) {}
+[[maybe_unused]] void CWMR_Client::newsProvidersProtoBuf([[maybe_unused]] const protobuf::NewsProviders& newsProvidersProto) {}
+
+void CWMR_Client::historicalNewsProtoBuf(const protobuf::HistoricalNews& historicalNewsProto) {
+	std::println("Historical News: {}", historicalNewsProto.ShortDebugString());
+}
+
+void CWMR_Client::historicalNewsEndProtoBuf(const protobuf::HistoricalNewsEnd& historicalNewsEndProto) {
+	std::println("Historical News End: {}", historicalNewsEndProto.ShortDebugString());
+}
+
+[[maybe_unused]] void CWMR_Client::wshMetaDataProtoBuf([[maybe_unused]] const protobuf::WshMetaData& wshMetaDataProto) {}
+[[maybe_unused]] void CWMR_Client::wshEventDataProtoBuf([[maybe_unused]] const protobuf::WshEventData& wshEventDataProto) {}
+[[maybe_unused]] void CWMR_Client::tickNewsProtoBuf([[maybe_unused]] const protobuf::TickNews& tickNewsProto) {}
+[[maybe_unused]] void CWMR_Client::scannerParametersProtoBuf([[maybe_unused]] const protobuf::ScannerParameters& scannerParametersProto) {}
+[[maybe_unused]] void CWMR_Client::fundamentalsDataProtoBuf([[maybe_unused]] const protobuf::FundamentalsData& fundamentalsDataProto) {}
+[[maybe_unused]] void CWMR_Client::scannerDataProtoBuf([[maybe_unused]] const protobuf::ScannerData& scannerDataProto) {}
+[[maybe_unused]] void CWMR_Client::pnlProtoBuf([[maybe_unused]] const protobuf::PnL& pnlProto) {}
+[[maybe_unused]] void CWMR_Client::pnlSingleProtoBuf([[maybe_unused]] const protobuf::PnLSingle& pnlSingleProto) {}
+[[maybe_unused]] void CWMR_Client::receiveFAProtoBuf([[maybe_unused]] const protobuf::ReceiveFA& receiveFAProto) {}
+[[maybe_unused]] void CWMR_Client::replaceFAEndProtoBuf([[maybe_unused]] const protobuf::ReplaceFAEnd& replaceFAEndProto) {}
+[[maybe_unused]] void CWMR_Client::commissionAndFeesReportProtoBuf([[maybe_unused]] const protobuf::CommissionAndFeesReport& commissionAndFeesReportProto) {}
+[[maybe_unused]] void CWMR_Client::historicalScheduleProtoBuf([[maybe_unused]] const protobuf::HistoricalSchedule& historicalScheduleProto) {}
+[[maybe_unused]] void CWMR_Client::rerouteMarketDataRequestProtoBuf([[maybe_unused]] const protobuf::RerouteMarketDataRequest& rerouteMarketDataRequestProto) {}
+[[maybe_unused]] void CWMR_Client::rerouteMarketDepthRequestProtoBuf([[maybe_unused]] const protobuf::RerouteMarketDepthRequest& rerouteMarketDepthRequestProto) {}
+[[maybe_unused]] void CWMR_Client::secDefOptParameterProtoBuf([[maybe_unused]] const protobuf::SecDefOptParameter& secDefOptParameterProto) {}
+[[maybe_unused]] void CWMR_Client::secDefOptParameterEndProtoBuf([[maybe_unused]] const protobuf::SecDefOptParameterEnd& secDefOptParameterEndProto) {}
+[[maybe_unused]] void CWMR_Client::softDollarTiersProtoBuf([[maybe_unused]] const protobuf::SoftDollarTiers& softDollarTiersProto) {}
+[[maybe_unused]] void CWMR_Client::familyCodesProtoBuf([[maybe_unused]] const protobuf::FamilyCodes& familyCodesProto) {}
+[[maybe_unused]] void CWMR_Client::symbolSamplesProtoBuf([[maybe_unused]] const protobuf::SymbolSamples& symbolSamplesProto) {}
+[[maybe_unused]] void CWMR_Client::smartComponentsProtoBuf([[maybe_unused]] const protobuf::SmartComponents& smartComponentsProto) {}
+[[maybe_unused]] void CWMR_Client::marketRuleProtoBuf([[maybe_unused]] const protobuf::MarketRule& marketRuleProto) {}
+[[maybe_unused]] void CWMR_Client::userInfoProtoBuf([[maybe_unused]] const protobuf::UserInfo& userInfoProto) {}
+[[maybe_unused]] void CWMR_Client::nextValidIdProtoBuf([[maybe_unused]] const protobuf::NextValidId& nextValidIdProto) {}
+[[maybe_unused]] void CWMR_Client::currentTimeProtoBuf([[maybe_unused]] const protobuf::CurrentTime& currentTimeProto) {}
+[[maybe_unused]] void CWMR_Client::currentTimeInMillisProtoBuf([[maybe_unused]] const protobuf::CurrentTimeInMillis& currentTimeInMillisProto) {}
+[[maybe_unused]] void CWMR_Client::verifyMessageApiProtoBuf([[maybe_unused]] const protobuf::VerifyMessageApi& verifyMessageApiProto) {}
+[[maybe_unused]] void CWMR_Client::verifyCompletedProtoBuf([[maybe_unused]] const protobuf::VerifyCompleted& verifyCompletedProto) {}
+[[maybe_unused]] void CWMR_Client::displayGroupListProtoBuf([[maybe_unused]] const protobuf::DisplayGroupList& displayGroupListProto) {}
+[[maybe_unused]] void CWMR_Client::displayGroupUpdatedProtoBuf([[maybe_unused]] const protobuf::DisplayGroupUpdated& displayGroupUpdatedProto) {}
+[[maybe_unused]] void CWMR_Client::marketDepthExchangesProtoBuf([[maybe_unused]] const protobuf::MarketDepthExchanges& marketDepthExchangesProto) {}
+
+void CWMR_Client::configResponseProtoBuf(const protobuf::ConfigResponse& configResponseProto) {
+	std::println("==== Config Response Begin ====");
+	std::println("{}", configResponseProto.ShortDebugString());
+	std::println("==== Config Response End ====");
+}
+void CWMR_Client::updateConfigResponseProtoBuf(const protobuf::UpdateConfigResponse& updateConfigResponseProto) {
+	std::println("==== Update Config Response Begin ====");
+	std::println("{}", updateConfigResponseProto.ShortDebugString());
+	std::println("==== Update Config Response End ====");
+}
+
+#endif
+
+
+void CWMR_Client::printContractMsg(const Contract& contract) {
+	std::println("\tContractId: {}", contract.conId);
+	std::println("\tSymbol: {}", contract.symbol);
+	std::println("\tSecType: {}", contract.secType);
+	std::println("\tLastTradeDateOrContractMonth: {}", contract.lastTradeDateOrContractMonth);
+	std::println("\tLastTradeDate: {}", contract.lastTradeDate);
+	std::println("\tStrike: {}", Utility::doubleMaxString(contract.strike));
+	std::println("\tRight: {}", contract.right);
+	std::println("\tMultiplier: {}", contract.multiplier);
+	std::println("\tExchange: {}", contract.exchange);
+	std::println("\tPrimaryExchange: {}", contract.primaryExchange);
+	std::println("\tCurrency: {}", contract.currency);
+	std::println("\tLocalSymbol: {}", contract.localSymbol);
+	std::println("\tTradingClass: {}", contract.tradingClass);
+}
+
+void CWMR_Client::printContractDetailsMsg(const ContractDetails& contractDetails) {
+	std::println("\tMarketName: {}", contractDetails.marketName);
+	std::println("\tMinTick: {}", Utility::doubleMaxString(contractDetails.minTick));
+	std::println("\tPriceMagnifier: {}", Utility::intMaxString(contractDetails.priceMagnifier));
+	std::println("\tOrderTypes: {}", contractDetails.orderTypes);
+	std::println("\tValidExchanges: {}", contractDetails.validExchanges);
+	std::println("\tUnderConId: {}", Utility::intMaxString(contractDetails.underConId));
+	std::println("\tLongName: {}", contractDetails.longName);
+	std::println("\tContractMonth: {}", contractDetails.contractMonth);
+	std::println("\tIndustry: {}", contractDetails.industry);
+	std::println("\tCategory: {}", contractDetails.category);
+	std::println("\tSubcategory: {}", contractDetails.subcategory);
+	std::println("\tTimeZoneId: {}", contractDetails.timeZoneId);
+	std::println("\tTradingHours: {}", contractDetails.tradingHours);
+	std::println("\tLiquidHours: {}", contractDetails.liquidHours);
+	std::println("\tEvRule: {}", contractDetails.evRule);
+	std::println("\tEvMultiplier: {}", Utility::doubleMaxString(contractDetails.evMultiplier));
+	std::println("\tAggGroup: {}", Utility::intMaxString(contractDetails.aggGroup));
+	std::println("\tUnderSymbol: {}", contractDetails.underSymbol);
+	std::println("\tUnderSecType: {}", contractDetails.underSecType);
+	std::println("\tMarketRuleIds: {}", contractDetails.marketRuleIds);
+	std::println("\tRealExpirationDate: {}", contractDetails.realExpirationDate);
+	std::println("\tLastTradeTime: {}", contractDetails.lastTradeTime);
+	std::println("\tStockType: {}", contractDetails.stockType);
+	std::println("\tMinSize: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.minSize));
+	std::println("\tSizeIncrement: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.sizeIncrement));
+	std::println("\tSuggestedSizeIncrement: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.suggestedSizeIncrement));
+	std::println("\tMinAlgoSize: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.minAlgoSize));
+	std::println("\tLastPricePrecision: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.lastPricePrecision));
+	std::println("\tLastSizePrecision: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.lastSizePrecision));
+	std::println("\tEventContract1: {}", contractDetails.eventContract1);
+	std::println("\tEventContractDescription1: {}", contractDetails.eventContractDescription1);
+	std::println("\tEventContractDescription2: {}", contractDetails.eventContractDescription2);
+	if (contractDetails.contract.secType == "FUND") {
+		std::println("\tFund Data:");
+		std::println("\t\tFundName: {}", contractDetails.fundName);
+		std::println("\t\tFundFamily: {}", contractDetails.fundFamily);
+		std::println("\t\tFundType: {}", contractDetails.fundType);
+		std::println("\t\tFundFrontLoad: {}", contractDetails.fundFrontLoad);
+		std::println("\t\tFundBackLoad: {}", contractDetails.fundBackLoad);
+		std::println("\t\tFundBackLoadTimeInterval: {}", contractDetails.fundBackLoadTimeInterval);
+		std::println("\t\tFundManagementFee: {}", contractDetails.fundManagementFee);
+		std::println("\t\tFundClosed: {}", contractDetails.fundClosed ? "Yes" : "No");
+		std::println("\t\tFundClosedForNewInvestors: {}", contractDetails.fundClosedForNewInvestors ? "Yes" : "No");
+		std::println("\t\tFundClosedForNewMoney: {}", contractDetails.fundClosedForNewMoney ? "Yes" : "No");
+		std::println("\t\tFundNotifyAmount: {}", contractDetails.fundNotifyAmount);
+		std::println("\t\tFundMinimumInitialPurchase: {}", contractDetails.fundMinimumInitialPurchase);
+		std::println("\t\tFundSubsequentMinimumPurchase: {}", contractDetails.fundSubsequentMinimumPurchase);
+		std::println("\t\tFundBlueSkyStates: {}", contractDetails.fundBlueSkyStates);
+		std::println("\t\tFundBlueSkyTerritories: {}", contractDetails.fundBlueSkyTerritories);
+		std::println("\t\tFundDistributionPolicyIndicator: {}", Utility::getFundDistributionPolicyIndicatorString(contractDetails.fundDistributionPolicyIndicator));
+		std::println("\t\tFundAssetType: {}", Utility::getFundAssetTypeName(contractDetails.fundAssetType));
+	}
+	printContractDetailsSecIdList(contractDetails.secIdList);
+	printContractDetailsIneligibilityReasonList(contractDetails.ineligibilityReasonList);
+}
+
+void CWMR_Client::printContractDetailsSecIdList(const TagValueListSPtr& secIdList) {
+	if (secIdList) {
+		std::println("\tSecIdList: {{");
+		for (const auto& tag : *secIdList) {
+			std::print("{}={}", tag->tag, tag->value);
+		}
+		std::println("}}");
+	}
+}
+
+
+void CWMR_Client::printContractDetailsIneligibilityReasonList(const IneligibilityReasonListSPtr& ineligibilityReasonList) {
+	if (ineligibilityReasonList) {
+		std::println("\tIneligibilityReasonList: {{");
+		for (const auto& reason : *ineligibilityReasonList) {
+			std::print("[id: {}, description: {}];", reason->id, reason->description);
+		}
+		std::println("}}");
+	}
+}
+
+void CWMR_Client::printBondContractDetailsMsg(const ContractDetails& contractDetails) {
+	std::println("\tSymbol: {}", contractDetails.contract.symbol);
+	std::println("\tSecType: {}", contractDetails.contract.secType);
+	std::println("\tCusip: {}", contractDetails.cusip);
+	std::println("\tCoupon: {}", Utility::doubleMaxString(contractDetails.coupon));
+	std::println("\tMaturity: {}", contractDetails.maturity);
+	std::println("\tIssueDate: {}", contractDetails.issueDate);
+	std::println("\tRatings: {}", contractDetails.ratings);
+	std::println("\tBondType: {}", contractDetails.bondType);
+	std::println("\tCouponType: {}", contractDetails.couponType);
+	std::println("\tConvertible: {}", contractDetails.convertible ? "Yes" : "No");
+	std::println("\tCallable: {}", contractDetails.callable ? "Yes" : "No");
+	std::println("\tPutable: {}", contractDetails.putable ? "Yes" : "No");
+	std::println("\tDescAppend: {}", contractDetails.descAppend);
+	std::println("\tExchange: {}", contractDetails.contract.exchange);
+	std::println("\tCurrency: {}", contractDetails.contract.currency);
+	std::println("\tMarketName: {}", contractDetails.marketName);
+	std::println("\tTradingClass: {}", contractDetails.contract.tradingClass);
+	std::println("\tConId: {}", Utility::intMaxString(contractDetails.contract.conId));
+	std::println("\tMinTick: {}", Utility::doubleMaxString(contractDetails.minTick));
+	std::println("\tOrderTypes: {}", contractDetails.orderTypes);
+	std::println("\tValidExchanges: {}", contractDetails.validExchanges);
+	std::println("\tNextOptionsDate: {}", contractDetails.nextOptionDate);
+	std::println("\tNextOptionsType: {}", contractDetails.nextOptionType);
+	std::println("\tNextOptionsPartial: {}", contractDetails.nextOptionPartial ? "Yes" : "No");
+	std::println("\tNotes: {}", contractDetails.notes);
+	std::println("\tLongName: {}", contractDetails.longName);
+	std::println("\tTradingZoneId: {}", contractDetails.timeZoneId);
+	std::println("\tTradingHours: {}", contractDetails.tradingHours);
+	std::println("\tLiquidHours: {}", contractDetails.liquidHours);
+	std::println("\tEvRule: {}", contractDetails.evRule);
+	std::println("\tEvMultiplier: {}", Utility::doubleMaxString(contractDetails.evMultiplier));
+	std::println("\tAggGroup: {}", Utility::intMaxString(contractDetails.aggGroup));
+	std::println("\tMarketRuleIds: {}", contractDetails.marketRuleIds);
+	std::println("\tTimeZoneId: {}", contractDetails.timeZoneId);
+	std::println("\tLastTradeTime: {}", contractDetails.lastTradeTime);
+	std::println("\tMinSize: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.minSize));
+	std::println("\tSizeIncrement: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.sizeIncrement));
+	std::println("\tSuggestedSizeIncrement: {}", DecimalFunctions::decimalStringToDisplay(contractDetails.suggestedSizeIncrement));
+	printContractDetailsSecIdList(contractDetails.secIdList);
+}
+
+void CWMR_Client::printSoftDollarTier(const SoftDollarTier& softDollarTier) {
+	std::println("\tSoftDollarTier - Name={}, Value={}, DisplayName={}", 
+		softDollarTier.name(), softDollarTier.val(), softDollarTier.displayName());
+}

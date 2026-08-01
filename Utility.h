@@ -1,0 +1,26 @@
+#pragma once
+#ifndef CWMR_STRATEGY_UTILITY_H
+#define CWMR_STRATEGY_UTILITY_H
+
+#include <string>
+#include <limits>
+#include <cmath>
+#include <vector>
+#include "CommonDefs.h"
+
+class Utility {
+public:
+    static std::string doubleMaxString(double d, std::string def);
+    static std::string doubleMaxString(double d);
+	static std::string intMaxString(int n);
+	static std::string llongMaxString(long long n);
+
+	static std::string getFundDistributionPolicyIndicatorString(FundDistributionPolicyIndicator fundDistributionPolicyIndicator);
+	static std::string getFundAssetTypeName(FundAssetType fundAssetType);
+	static std::string getOptionExerciseTypeName(OptionExerciseType optionExerciseType);
+
+	static std::vector<std::uint8_t> base64Decode(const std::string& encodedString);
+	static inline bool isBase64(std::uint8_t c);
+};
+
+#endif // !CWMR_STRATEGY_UTILITY_H
